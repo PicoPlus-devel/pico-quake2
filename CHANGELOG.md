@@ -4,6 +4,20 @@ Add a section per release, headed with the tag. The release workflow puts the se
 matching the tag in the GitHub release text (`tools/release_notes.sh`), so keep the
 heading exactly the tag name.
 
+## Unreleased
+
+### New
+
+- Support for a second board: a Pimoroni Pico Plus 2 with the Adafruit DVI and microSD
+  breakouts (the pico_shared HW_CONFIG 2 setup). Firmware file:
+  `pico-quake2_adafruitdvisd.uf2`. The wiring is described in the
+  [README](https://github.com/PicoPlus-devel/pico-quake2#boards).
+- NES and SNES controllers in that board's two controller ports.
+- The board's LED blinks during the slow first load of a level.
+- A version for [pico-bootLoader](https://github.com/PicoPlus-devel/pico-bootLoader), on
+  both boards: Quake II can be started from the bootloader's menu, and quitting the game
+  returns to it.
+
 ## v0.1-alpha
 
 First pre-release. Quake II runs on the Adafruit Fruit Jam, but this is an early

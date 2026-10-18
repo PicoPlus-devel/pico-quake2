@@ -50,6 +50,12 @@ void q2_usb_look (int *x, int *y);
 // q2_input.c: turns one sample into key events. Runs in the timer interrupt.
 void q2_input_sample (const q2_usb_state_t *s);
 
+// q2_nespad.cpp: the NES/SNES controller ports, on boards that have them
+// (NES_PIN_CLK in the board header); no-ops elsewhere. q2_nespad_buttons runs in
+// the USB timer interrupt and returns io::GamePadState::Button bits.
+void q2_nespad_init (void);
+uint32_t q2_nespad_buttons (void);
+
 #ifdef __cplusplus
 }
 #endif

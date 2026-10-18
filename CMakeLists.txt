@@ -12,6 +12,8 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # translation unit; everything board-specific comes from that header.
 #
 #   fruitjam      Adafruit Fruit Jam   (HW_CONFIG 8, PIO-USB, TLV320)
+#   adafruitdvisd Pico Plus 2 + Adafruit DVI and SD breakouts
+#                                      (HW_CONFIG 2, PIO-USB, PCM5100A, NES/SNES ports)
 #
 set(Q2_BOARD "fruitjam" CACHE STRING "Board tag: selects <tag>_cflags.h")
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${Q2_BOARD}_cflags.h")
@@ -113,6 +115,9 @@ if (NOT TARGET tinyusb_pico_pio_usb)
 endif()
 add_subdirectory(3rdparty/tusb_xinput)
 add_subdirectory(3rdparty/pico_shared_drivers/usb_hid)
+# NES/SNES controller ports. Linked on every board: q2_nespad.cpp only uses it when
+# the board header defines NES_PIN_CLK, and the linker drops it otherwise.
+add_subdirectory(3rdparty/pico_shared_drivers/nespad)
 
 include(cmake/q2_engine.cmake)
 

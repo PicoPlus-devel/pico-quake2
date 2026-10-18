@@ -5,9 +5,12 @@
 # only, no pico_generate_pio_header needed. nespad.cpp reads the force-included
 # HW_CONFIG macro to select the shared-CLK/LAT program variant (Murmulator M2).
 #
+# Copied from pico_shared a7cc387 (18-clock read, nespad_padtype[]).
+#
 # LOCAL PATCH (keep on resync / upstream to pico_shared): nespad_read_ready()
-# in nespad.{h,cpp} — non-blocking "finish will not block" check, used by
-# i_usbhid.cpp so a controller port can never hang the game loop.
+# in nespad.{h,cpp}, marked pico-quake2: -- non-blocking "finish will not
+# block" check, used by src/pico/q2_nespad.cpp, which polls from the USB timer
+# interrupt, so a controller port can never hang it.
 add_library(pico_shared_nespad INTERFACE)
 target_sources(pico_shared_nespad INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/nespad.cpp

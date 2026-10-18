@@ -1,15 +1,16 @@
 # pico-quake2
 
-A port of id Software's Quake II to the Adafruit Fruit Jam, a board built around the
-Raspberry Pi RP2350 microcontroller. The picture goes out over HDMI, sound over HDMI or
-the headphone jack, and the game is played with a USB gamepad or a USB keyboard and
-mouse. The game data is read from an SD card.
+A port of id Software's Quake II to boards built around the Raspberry Pi RP2350
+microcontroller: the Adafruit Fruit Jam, and a Pimoroni Pico Plus 2 with the Adafruit
+DVI and microSD breakouts (see [Boards](#boards)). The picture goes out over HDMI, sound
+over HDMI or a headphone output, and the game is played with a USB gamepad or a USB
+keyboard and mouse. The game data is read from an SD card.
 
 > [!WARNING]
 > **This is an early pre-release, and a lot remains to be fixed.** The three levels of
 > the Quake II demo load and can be played, and saving works. However, the frame rate
-> is low, only one board and one gamepad have been tested, and crashes and other errors
-> are to be expected. Read [Status and limitations](#status-and-limitations) before
+> is low, few boards and gamepads have been tested, and crashes and other errors are
+> to be expected. Read [Status and limitations](#status-and-limitations) before
 > installing.
 
 ## Screenshots
@@ -37,6 +38,7 @@ test program, which runs the same game code and reproduces the board's colour de
 - Sound effects over HDMI, or over the headphone jack while headphones are plugged in
 - USB gamepad input, tested with a DualShock 4 (see [Controls](#controls)); keyboards
   and mice are supported but not yet tested
+- NES and SNES controllers in the controller ports of the Pico Plus 2 board
 - Savegames and settings on the SD card
 - Errors are shown on the screen, so no serial cable or computer is needed to find out
   what went wrong
@@ -46,51 +48,75 @@ test program, which runs the same game code and reproduces the board's colour de
 - **Low frame rate.** The demo levels run at about 20 to 25 frames per second, and
   slower in busy scenes. To get there, the view fills only 70% of the screen by default.
   A larger view lowers the frame rate further.
-- **One board.** Only the Adafruit Fruit Jam is supported. The port needs an RP2350
-  with 8 MB of PSRAM and 16 MB of flash memory; other boards may follow.
+- **Two boards.** Only the boards listed under [Boards](#boards) are supported. The port
+  needs an RP2350 with 8 MB of PSRAM and 16 MB of flash memory; other boards may follow.
 - **Overclocked.** The RP2350 runs at 378 MHz, more than twice its rated 150 MHz, with
   its core voltage raised to 1.50 V. This has been reliable on the test board, but it is
   outside the chip's specification.
 - **Slow first load of each level.** The first time a level is loaded, its textures,
   models and sounds are copied from the SD card into the board's flash memory. This
-  takes considerably longer than later loads of the same level. The copy is kept when
-  the board is switched off. If other firmware overwrites that part of the flash, or the
-  game data on the card changes, the copy is checked and refreshed automatically.
+  takes considerably longer than later loads of the same level; the board's LED blinks
+  while the copy is in progress. The copy is kept when the board is switched off. If
+  other firmware overwrites that part of the flash, or the game data on the card
+  changes, the copy is checked and refreshed automatically.
 - **Only the demo has been tested.** The data files of the full game are read the same
   way, but none of its levels have been tried, and some may not fit in memory.
-- **Untested input devices.** Only a Sony DualShock 4 has been tested. Keyboards, mice,
-  Xbox-compatible (XInput) pads and other USB gamepads are supported by the code but have
-  not been tested yet.
+- **Untested input devices.** Of the USB devices, only a Sony DualShock 4 has been
+  tested. Keyboards, mice, Xbox-compatible (XInput) pads and other USB gamepads are
+  supported by the code but have not been tested yet.
 - **Not every action is on the gamepad.** Using an inventory item, such as Quad Damage
   or the rebreather, and selecting a weapon directly require a keyboard.
 - **No music.** The original game played its music from the CD, which is not supported.
   The demo has no music.
 - **Not supported:** multiplayer, mission packs and mods.
-- **No [pico-bootLoader](https://github.com/PicoPlus-devel/pico-bootLoader) build** in this
-  release; the firmware runs standalone only.
 
 Problems can be reported on the
 [issues page](https://github.com/PicoPlus-devel/pico-quake2/issues). Please include the
 text shown on the screen, if any.
 
+## Boards
+
+| Board | Firmware file |
+|---|---|
+| [Adafruit Fruit Jam](https://www.adafruit.com/product/6200) | `pico-quake2_fruitjam.uf2` |
+| Pimoroni Pico Plus 2 with the Adafruit DVI breakout and microSD breakout (pico_shared hardware configuration 2) | `pico-quake2_adafruitdvisd.uf2` |
+
+The second board is the configuration the pico_shared emulators call HW_CONFIG 2, built
+on a breadboard or on a printed circuit board. It must use a
+[Pimoroni Pico Plus 2](https://shop.pimoroni.com/products/pimoroni-pico-plus-2), or
+another RP2350B module with 8 MB of PSRAM on GPIO 47 and 16 MB of flash; a Raspberry Pi
+Pico 2 has no PSRAM and does not work. It is wired as follows:
+
+| Function | GPIO |
+|---|---|
+| [Adafruit DVI breakout](https://www.adafruit.com/product/4984) | D0+ 12, CK+ 14, D2+ 16, D1+ 18 (and the pins next to them) |
+| [Adafruit microSD breakout](https://www.adafruit.com/product/254) | SCK 2, MOSI 3, MISO 4, CS 5 |
+| USB host socket (USB-A) | D+ 20, D− 21; 5 V from VBUS |
+| NES/SNES controller port 1 | CLK 6, DATA 7, LATCH 8 |
+| NES/SNES controller port 2 | CLK 9, DATA 10, LATCH 11 |
+| PCM5100A I2S DAC (optional) | DATA 26, BCK 27, LRCK 28 |
+| Serial console (optional) | TX 0, RX 1 |
+
 ## What you need
 
-- An [Adafruit Fruit Jam](https://www.adafruit.com/product/6200)
+- One of the [boards](#boards) above
 - A microSD card, formatted FAT32 or exFAT, with about 60 MB of free space
 - The game data: the Quake II demo (see [Installing](#installing)), or the `baseq2`
   folder of the full game (untested, see above)
 - An HDMI screen
-- A USB gamepad, or a USB keyboard and preferably a mouse
-- Optionally, headphones
+- A USB gamepad, or a USB keyboard and preferably a mouse; on the Pico Plus 2 board, a
+  NES or SNES controller can be used as well
+- Optionally, headphones (Fruit Jam) or a PCM5100A DAC (Pico Plus 2 board)
 
 ## Installing
 
-1. Download `pico-quake2_fruitjam.uf2` and `pico-quake2_demo_sdcard.zip` from the
+1. Download the firmware file for your board (see [Boards](#boards)) and
+   `pico-quake2_demo_sdcard.zip` from the
    [releases page](https://github.com/PicoPlus-devel/pico-quake2/releases).
-2. Hold the **BOOT** button on the board while connecting it to a computer over USB-C.
+2. Hold the **BOOT** button on the board while connecting it to a computer over USB.
    It appears as a USB drive named `RP2350`.
-3. Copy `pico-quake2_fruitjam.uf2` onto that drive. The board restarts and shows an
-   error, because the game data is not on the card yet.
+3. Copy the firmware file onto that drive. The board restarts and shows an error,
+   because the game data is not on the card yet.
 4. Unpack `pico-quake2_demo_sdcard.zip` to the root of the SD card. This creates the
    folder `roms/quake2`.
    To use your own copy of Quake II instead, copy its `baseq2` folder into
@@ -122,6 +148,27 @@ commercially. The demo data is not covered by this project's GPL licence. Keep
 
 The full game is not included.
 
+### With pico-bootLoader
+
+Quake II can also be started from the menu of
+[pico-bootLoader](https://github.com/PicoPlus-devel/pico-bootLoader), which keeps several
+applications on one board. It is listed in the bootloader's **Ports** category on both
+boards, and the bootloader's SD-card archive contains its firmware. The game data is not
+part of that archive: install it in `roms/quake2` as described above.
+
+- Quitting the game, or pressing RESET, returns to the bootloader menu.
+- Other applications started from the bootloader may overwrite part of the flash memory
+  that holds the copied level data. The next load of an affected level is then slow
+  again, as on its first load.
+- On the Pico Plus 2 board, USB devices must be connected to the USB-A socket on
+  GPIO 20/21 (see [Boards](#boards)). The bootloader and the emulators take USB
+  controllers on the Pico's own USB port instead; Quake II does not. NES and SNES
+  controllers in the controller ports work in both.
+- The standalone firmware files cannot be started from the bootloader. The bootloader
+  version is built with `./fruitjam-build-forbootloader.sh` or
+  `./adafruitdvisd-build-forbootloader.sh` (see [Building from source](#building-from-source))
+  and goes in `/emu/8/` or `/emu/2/` on the SD card.
+
 ## Controls
 
 A gamepad, a keyboard and a mouse can be used at the same time.
@@ -147,6 +194,16 @@ Buttons are named by their position. The bottom face button is **A** on an Xbox 
 
 The right stick works on pads that report one, such as Xbox-compatible pads, the
 DualShock 4 and the DualSense.
+
+### NES and SNES controllers
+
+On the Pico Plus 2 board, controllers in the two NES/SNES ports work like a USB gamepad
+with the same buttons. A SNES controller's buttons sit in the same positions as on the
+table above: **B** fires, **A** jumps, **Y** crouches, **X** selects the next weapon and
+**L** / **R** strafe. On a NES controller, **B** fires and selects in menus, and **A**
+jumps and goes back. Some SNES controllers are only recognised once **A**, **X**, **L**
+or **R** has been pressed; until then, **B** and **Y** act as a NES controller's **A**
+and **B**.
 
 ### Keyboard and mouse
 
@@ -211,8 +268,12 @@ Savegames are written to `roms/quake2/baseq2/save/` on the SD card.
 
 ## Sound
 
-Sound plays over HDMI. While headphones are plugged into the headphone jack, it plays
-there instead. The board's speaker is not used.
+Sound plays over HDMI.
+
+- **Fruit Jam:** while headphones are plugged into the headphone jack, sound plays there
+  instead. The board's speaker is not used.
+- **Pico Plus 2 board:** if a PCM5100A DAC is fitted, sound plays over HDMI and the DAC
+  at the same time.
 
 ## When something goes wrong
 
@@ -246,7 +307,12 @@ The board then stops, so the message stays readable.
 export PICO_SDK_PATH=/path/to/pico-sdk
 export PICO_PIO_USB_PATH=/path/to/Pico-PIO-USB
 ./fruitjam-build.sh          # -> build_fruitjam/src/pico/quake2.uf2
+./adafruitdvisd-build.sh     # -> build_adafruitdvisd/src/pico/quake2.uf2
 ./buildAll.sh                # every release file -> releases/
+
+# pico-bootLoader versions
+./fruitjam-build-forbootloader.sh       # -> build_bl_fruitjam/src/pico/quake2.uf2
+./adafruitdvisd-build-forbootloader.sh  # -> build_bl_adafruitdvisd/src/pico/quake2.uf2
 ```
 
 Design notes, debugging tools and measurements are in [TECHNICAL.md](TECHNICAL.md).

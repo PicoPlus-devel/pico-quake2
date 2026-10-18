@@ -257,6 +257,7 @@ int main (void)
 
 	paint_stack ();
 	release_peripheral_reset ();
+	q2_flash_probe ();		// before the overclock and the PSRAM
 	setup_clocks ();
 	stdio_init_all ();
 	q2_console_attach_stdio ();
@@ -280,6 +281,7 @@ int main (void)
 	q2_flash_init ();
 
 	Quake2_Init (4, argv);
+	q2_nespad_init ();	// before the USB timer, which polls the controller ports
 	q2_usb_init ();		// after Quake2_Init, which resets the key queue the USB timer fills
 
 	oldtime = Quake2_Milliseconds ();
@@ -293,6 +295,7 @@ int main (void)
 			msec = newtime - oldtime;
 		} while (msec < 1);
 		Quake2_Frame (msec);
+		q2_flash_idle ();
 		oldtime = newtime;
 		report_status (newtime, &frames);
 	}

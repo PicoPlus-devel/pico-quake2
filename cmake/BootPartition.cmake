@@ -34,12 +34,17 @@ else()
 endif()
 message(STATUS "pico-quake2 flash: app ${Q2_APP_SIZE} bytes, asset cache ${Q2_FCACHE_BASE} + ${Q2_FCACHE_SIZE}")
 
+# Every build claims the full 16 MB CS0 window. hard_assert in the SDK's
+# flash_range_erase/program checks offsets against PICO_FLASH_SIZE_BYTES, and a
+# board header may understate the chip (pico2.h says 4 MB, the Pico Plus 2 that
+# HW_CONFIG 2 needs carries 16 MB); the header's #ifndef lets this win. The
+# value only feeds those asserts: the FLASH region comes from Q2_APP_SIZE
+# (cmake/psram_linker.cmake), and q2_flash.c reads the real size off the chip
+# and never lets the asset cache reach past it.
+add_compile_definitions(PICO_FLASH_SIZE_BYTES=${Q2_FLASH_TOTAL})
+
 # Target properties that go with a relinked (bootloader) image.
 function(q2_bootloader_target_props TARGET)
-    # The real chip capacity: hard_assert in flash_range_erase/program panics if a
-    # board header understates it.
-    target_compile_definitions(${TARGET} PRIVATE PICO_FLASH_SIZE_BYTES=${Q2_FLASH_TOTAL})
-
     # picotool >= 2.2.0 assumes RP2040 for images that do not start at 0x10000000.
     if(PICO_PLATFORM MATCHES "rp2350")
         find_program(_q2_picotool picotool)

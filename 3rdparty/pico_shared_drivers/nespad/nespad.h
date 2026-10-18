@@ -12,21 +12,29 @@ extern uint8_t nespad_states[2];
 // NES pads are auto-detected and only populate bits 0-7 (A,B,Select,Start,
 // dpad), identical to nespad_states[].
 extern uint16_t nespad_states_ext[2];
-// fruitjam-doom local addition (candidate for pico_shared upstream): true when
-// the pad on that port was detected as a NES pad on the last read, false for a
-// SNES pad or an empty port. nespad_decode() already works this out from the 4
-// ID bits (a NES pad reads all four high, a SNES pad drives them so it never
-// can) and then strips them, so a caller cannot recover it from
-// nespad_states_ext[] afterwards. It matters because a NES pad's two buttons
-// land in the SNES serial positions B and Y, which is NOT where a caller wants
-// its A and B.
-extern bool nespad_is_nes[2];
+// Raw 16-clock read per port, inverted so 1 = pressed, before NES/SNES
+// masking: bits 0-11 as above, bits 12-15 the trailing ID nibble (all ones
+// for a NES pad, all zeros for a SNES pad and for an empty port). Exposed for
+// diagnostics (Settings > Controller Test).
+extern uint16_t nespad_raw_ext[2];
+// Which pad the port is talking to. Needed to name buttons: bit0 is A on a
+// NES pad but B on a SNES pad. UNKNOWN means the wire cannot tell yet - an
+// empty port, an 8-bit SNES->NES adapter that leaves the data line high after
+// 8 clocks, and an idle SNES pad that does not pull it low after its 16 bits
+// (official ones do) all read as all-zeros.
+enum
+{
+    NESPAD_TYPE_UNKNOWN = 0,
+    NESPAD_TYPE_NES,
+    NESPAD_TYPE_SNES,
+};
+extern uint8_t nespad_padtype[2];
 extern bool nespad_begin(uint8_t padnum, uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,
                          uint8_t latPin, PIO _pio);
 extern void nespad_read_start(void);
 extern void nespad_read_finish(void);
-// fruitjam-doom local addition (candidate for pico_shared upstream): true when
-// the read kicked off by nespad_read_start() has finished on every configured
-// pad, i.e. nespad_read_finish() will not block. Lets callers poll instead of
-// stalling on a pad whose state machine never delivered (init race, no port).
+// pico-quake2: true when the read kicked off by nespad_read_start() has
+// finished on every configured pad, i.e. nespad_read_finish() will not block.
+// Lets callers poll from an interrupt instead of stalling on a pad whose state
+// machine never delivered (init race, no port). From fruitjam-doom.
 extern bool nespad_read_ready(void);

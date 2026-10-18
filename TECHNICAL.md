@@ -17,9 +17,48 @@ Phase 2 (performance) has started. Phase 3 is done apart from testing more input
 ```sh
 ./fruitjam-build.sh                          # -> build_fruitjam/src/pico/quake2.uf2
 ./fruitjam-build.sh -DQ2_CPU_KHZ=504000      # 504 MHz (1.70 V) instead of 378 MHz
+./adafruitdvisd-build.sh                     # -> build_adafruitdvisd/src/pico/quake2.uf2
+./fruitjam-build-forbootloader.sh            # -> build_bl_fruitjam/src/pico/quake2.uf2
+./adafruitdvisd-build-forbootloader.sh       # -> build_bl_adafruitdvisd/src/pico/quake2.uf2
 ```
 
 Options (CMake): `Q2_CPU_KHZ` (a multiple of 126000), `Q2_VREG`, `Q2_ZBUFFER_SRAM`.
+
+Boards. Each has a `<tag>_cflags.h`, force-included into every translation unit, and a
+`<tag>-build.sh`:
+
+| Tag | Board | `PICO_BOARD` |
+|---|---|---|
+| `fruitjam` | Adafruit Fruit Jam (HW_CONFIG 8): TLV320 DAC with headphone detect, PIO-USB on GPIO 1/2 | `adafruit_fruit_jam` |
+| `adafruitdvisd` | pico_shared HW_CONFIG 2: Pimoroni Pico Plus 2 with the Adafruit DVI breakout (HSTX on GPIO 12–19, not inverted) and microSD breakout (SPI0 on GPIO 2–5); PIO-USB on GPIO 20/21; NES/SNES ports on GPIO 6–8 and 9–11; optional PCM5100A on GPIO 26–28 | `pico2` |
+
+`pico2` is what pico_shared's `bld.sh` uses for HW_CONFIG 2. Its header declares an
+RP2350A with 4 MB of flash, but GPIO 47 (PSRAM chip select) is still driven, and the
+flash size is overridden (see [Flash layout](#flash-layout-16-mb-boards)).
+
+**pico-bootLoader builds.** `<tag>-build-forbootloader.sh` runs `<tag>-build.sh` with
+`-DBUILD_FOR_BOOTLOADER=ON` in `build_bl_<tag>`.
+- FLASH starts at `0x10080000` and ends at the asset cache, 2.5 MB
+  (`cmake/BootPartition.cmake`, applied by `cmake/psram_linker.cmake`). The image is
+  about 0.8 MB.
+- The loader identifies an application by its binary-info program name, `pico-quake2`,
+  the first column of its `emu/emulators.txt`. Its `build_emulators.sh` clones this
+  repository at the latest release tag, runs these scripts for HW_CONFIG 8 and 2, and
+  installs `quake2.uf2` as `emu/<hw>/pico-quake2.uf2`. A tag reaches the bootloader's
+  SD-card archive only if it contains the scripts. `buildAll.sh` does not release
+  bootloader builds.
+- Quitting: `_exit(0)` calls `watchdog_reboot(0, 0, 1)`, which clears watchdog scratch 4.
+  The loader's resume check (`watchdog_enable_caused_reboot()`) is then false, so it
+  shows its menu instead of starting the game again.
+- Shared flash: other applications are flashed into the same partition and may write past
+  their image (pico_shared's settings sector right after the binary, ROMs on boards
+  without PSRAM, Doom's WAD). The cache's per-entry CRC catches overwritten entries. In
+  the other direction, the loader CRCs an application and its aux image in flash before
+  trusting its `.flashed` record, and pico_shared CRCs a ROM it left in flash before
+  reusing it. An overlap therefore costs refill time only.
+- On HW_CONFIG 2, input is PIO-USB on GPIO 20/21 and the NES/SNES ports. The loader and the
+  emulators are built without PIO-USB for that configuration and use the native USB port,
+  which this build leaves unused (PLL_USB drives `clk_hstx`).
 
 Bring-up and debugging:
 - **Flashing:** `tools/flash.sh <elf> [uart-log]` programs over a CMSIS-DAP probe with
@@ -60,6 +99,7 @@ Bring-up and debugging:
 
 ```sh
 ./buildAll.sh                       # -> releases/pico-quake2_fruitjam.uf2
+                                    #    releases/pico-quake2_adafruitdvisd.uf2
                                     #    releases/pico-quake2_demo_sdcard.zip
 tools/release_notes.sh v0.1-alpha   # the CHANGELOG.md section of that tag
 ```
@@ -96,7 +136,8 @@ tools/release_notes.sh v0.1-alpha   # the CHANGELOG.md section of that tag
 
 | File | Role |
 |---|---|
-| `src/pico/q2_usb.cpp` | TinyUSB host on Pico-PIO-USB (PIO2, GPIO 1/2, port power on GPIO 11); a 4 ms timer at the lowest priority runs `tuh_task` and samples every device |
+| `src/pico/q2_usb.cpp` | TinyUSB host on Pico-PIO-USB (PIO2; Fruit Jam GPIO 1/2 with port power on GPIO 11, HW_CONFIG 2 GPIO 20/21); a 4 ms timer at the lowest priority runs `tuh_task` and samples every device |
+| `src/pico/q2_nespad.cpp` | NES/SNES controller ports (pico_shared nespad on PIO1), polled from the same timer without blocking and merged into the pad buttons: SNES pads by position, NES pads by name (A → right, B → bottom) |
 | `src/pico/q2_usb_frame.c` | The 1 ms USB frame, and SOFs during flash writes |
 | `src/pico/q2_input.c` | HID keyboard usages, mouse and pad buttons to Quake II keys; mouse and right stick to `QG_GetMouseDiff`; the default pad bindings (`QG_PlatformConfig`) |
 | `3rdparty/pico_shared_drivers/usb_hid/` | pico_shared's HID driver, with the right stick and triggers added and the report re-arm fix (below) |
@@ -163,6 +204,10 @@ Problems found on the way:
 - **Output switching:** the codec's headset detection switches between the two. As in
   pico-duke3D, the speaker never plays. The jack gets silence while HDMI plays, so its
   PLL stays locked.
+- **Both outputs:** a DAC without headset detection (`Q2_AUDIO_I2S_DRIVER` other than
+  TLV320; the optional PCM5100A of HW_CONFIG 2) gets every sample that HDMI gets. The
+  pump takes as many frames as the fuller of the two queues allows, so the slower of the
+  two clocks (I2S from `clk_sys`, HDMI from `clk_hstx`) paces it, as in pico-duke3D.
 - **Starvation:** the play position stops at the last painted frame. When core0 stalls,
   the output gets silence instead of a replay of old audio, and the engine never misses a
   ring wrap.
@@ -206,6 +251,7 @@ loop, so it is not done.
 | `3rdparty/tlsf/` | TLSF allocator (BSD-3-Clause) |
 | `hosttest/` | Linux host harness |
 | `hosttest/screenshots.sh`, `docs/screenshots/` | The README screenshots (see Host harness) |
+| `<tag>_cflags.h`, `<tag>-build.sh`, `<tag>-build-forbootloader.sh` | Board configuration, standalone and pico-bootLoader builds (see Firmware) |
 | `buildAll.sh`, `tools/make_demo_zip.py`, `tools/release_notes.sh`, `.github/workflows/BuildAndRelease.yml` | Releases (see Releases) |
 
 ## Host harness
@@ -476,7 +522,7 @@ Notes:
     24.6 fps at viewsize 70 (22.6). The gain is small for the same reason as above.
   - 378 MHz stays the default: at 504 MHz and 1.70 V the board runs too hot.
 
-### Flash layout (16 MB boards, planned)
+### Flash layout (16 MB boards)
 
 | Range | Contents |
 |---|---|
@@ -485,6 +531,17 @@ Notes:
 | `0x10300000–0x11000000` | flash asset cache, 13 MB |
 
 A demo level needs 6–9 MB of cache, so the port requires a board with 16 MB of flash.
+
+**Flash size.** Every build defines `PICO_FLASH_SIZE_BYTES` as 16 MB
+(`cmake/BootPartition.cmake`). The SDK's `flash_range_erase`/`_program` hard-assert
+against it, and a board header may understate the chip: `pico2.h` declares 4 MB, so the
+first cache write would assert on the Pico Plus 2. The real size is read at run time:
+- `q2_flash_probe()` reads the JEDEC ID (`0x9F`) first in `main()`, before the overclock
+  and the PSRAM setup, as pico_shared's `storage_get_flash_capacity()` does. It restores
+  the QMI M0 read setup afterwards.
+- `q2_flash_init()` cuts the cache region to the chip, so writes never wrap round onto the
+  firmware. Below 1 MB there is no cache, and assets stay in PSRAM.
+- The boot log shows the result, e.g. `q2_flash: Winbond flash, JEDEC id ef4018, 16384 KB`.
 
 ## Engine fixes found by the harness
 

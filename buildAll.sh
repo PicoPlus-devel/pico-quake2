@@ -20,11 +20,13 @@
 #   pico-quake2_demo_sdcard.zip     the shareware demo data for the SD card, with the
 #                                   demo's licence (tools/make_demo_zip.py)
 #
-# Bootloader builds (-DBUILD_FOR_BOOTLOADER=ON) are not released yet.
+# pico-bootLoader builds (<tag>-build-forbootloader.sh) are not released here: the
+# pico-bootLoader repo builds them from this repo's latest release tag
+# (build_emulators.sh) and ships them in its SD-card archive.
 # ====================================================================================
 cd "$(dirname "$0")" || exit 1
 
-RELEASE_BOARDS="fruitjam"
+RELEASE_BOARDS="fruitjam adafruitdvisd"
 
 # --- tools -------------------------------------------------------------------
 if [ -z "$PICO_SDK_PATH" ] || [ ! -f "$PICO_SDK_PATH/pico_sdk_init.cmake" ]; then

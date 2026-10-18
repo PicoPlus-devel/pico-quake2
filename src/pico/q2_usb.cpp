@@ -6,7 +6,8 @@
 // so a key tap or mouse click shorter than a frame (60-80 ms in game) is still
 // seen: the HID driver only re-arms an endpoint from tuh_task, and a device
 // reports nothing but its latest state. Each tick passes a sample to
-// q2_input_sample (q2_input.c).
+// q2_input_sample (q2_input.c), with the NES/SNES controller ports
+// (q2_nespad.cpp) merged into the gamepad buttons.
 //
 // The 1 ms USB frame runs from its own SRAM-resident interrupt
 // (q2_usb_frame.c), which also keeps SOFs going while flash is written.
@@ -88,6 +89,8 @@ static void usb_sample (void)
 		s.mouse_buttons = m.buttons;
 	s.mouse_wheel = m.wheel;	// written by the HID callbacks, i.e. in this interrupt
 	m.wheel = 0;
+
+	s.pad_buttons |= q2_nespad_buttons ();
 
 	q2_input_sample (&s);
 }

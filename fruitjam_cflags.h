@@ -31,6 +31,7 @@
 #define USE_HSTX 1
 
 // --- I2S audio + TLV320DAC3100 codec (headphone jack) -----------------------
+#define Q2_AUDIO_I2S_DRIVER PICO_AUDIO_I2S_DRIVER_TLV320
 #define PICO_AUDIO_I2S_DATA_PIN 24
 #define PICO_AUDIO_I2S_CLOCK_PIN_BASE 26
 #define PICO_AUDIO_I2S_CLOCK_PINS_SWAPPED 0
@@ -57,6 +58,10 @@
 
 // --- PSRAM (8 MB APS6404 on QMI CS1 = GPIO 47) ------------------------------
 #define PSRAM_CS_PIN 47
+
+// --- LED: blinks while a level's assets are copied into flash (q2_flash.c) ---
+// The red LED; the NeoPixels are not used.
+#define Q2_LED_PIN 29
 
 // --- USB host on Pico-PIO-USB -----------------------------------------------
 // Also selects the clock path that retasks PLL_USB as the 126 MHz clk_hstx

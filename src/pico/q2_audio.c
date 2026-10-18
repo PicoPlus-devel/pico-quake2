@@ -13,6 +13,12 @@
 // As in pico-duke3D, the Fruit Jam's speaker never plays, and the jack gets silence
 // while HDMI is active so the DAC's PLL stays locked and plugging in does not pop.
 //
+// A board whose I2S DAC has no headphone detect (Q2_AUDIO_I2S_DRIVER other than
+// TLV320, e.g. the PCM5100A of HW_CONFIG 2) plays to both sinks at once, as
+// pico-duke3D does there: each sample goes to HDMI and to I2S, and the sink with
+// less room decides how much is taken, so the slower of the two clocks paces the
+// play position.
+//
 // Play stops at the last painted frame instead of wrapping into stale audio: when
 // core0 stalls (a slow frame, asset caching) the sink gets silence, and the play
 // position never runs more than s_mixahead past what the engine has seen, so it
@@ -50,7 +56,13 @@ extern int	soundtime;			// client/snd_dma.c
 #define DI_TARGET		192			// data islands (4 samples each, 17 ms) of the 256-island HDMI queue
 #define I2S_TARGET		2048		// samples (46 ms) of the I2S ring (I2S_AUDIO_RING_SIZE 4096)
 
-typedef enum { SINK_HDMI, SINK_JACK } sink_t;
+// The board's I2S DAC (board header); TLV320 is the Fruit Jam's codec with its jack
+#ifndef Q2_AUDIO_I2S_DRIVER
+#define Q2_AUDIO_I2S_DRIVER	PICO_AUDIO_I2S_DRIVER_TLV320
+#endif
+#define HAS_JACK_DETECT	(Q2_AUDIO_I2S_DRIVER == PICO_AUDIO_I2S_DRIVER_TLV320)
+
+typedef enum { SINK_HDMI, SINK_JACK, SINK_BOTH } sink_t;
 
 static uint32_t			ring[RING_FRAMES];		// L in bits 0-15, R in bits 16-31
 static volatile uint32_t	play_pos;				// frames played since SNDDMA_Init
@@ -89,17 +101,36 @@ static inline void __not_in_flash_func(push_jack) (int16_t l, int16_t r)
 	audio_i2s_enqueue_sample (((uint32_t)(uint16_t)l << 16) | (uint16_t)r);
 }
 
-// Output samples (44.1 kHz) the active sink can take before reaching its target.
+static inline void __not_in_flash_func(push) (sink_t s, int16_t l, int16_t r)
+{
+	if (s != SINK_JACK)
+		push_hdmi (l, r);
+	if (s != SINK_HDMI)
+		push_jack (l, r);
+}
+
+// Output samples (44.1 kHz) the active sink can take before reaching its target;
+// for both sinks, what the fuller one can take.
 static int __not_in_flash_func(sink_room) (sink_t s, int *i2s_free)
 {
+	int		jack = 0, hdmi = 0;
+
 	*i2s_free = i2s_ok ? audio_i2s_get_freebuffer_size () : 0;
-	if (s == SINK_JACK)
+	if (s != SINK_HDMI)
 	{
 		int	queued = I2S_AUDIO_RING_SIZE - 1 - *i2s_free;
-		return queued < I2S_TARGET ? I2S_TARGET - queued : 0;
+		jack = queued < I2S_TARGET ? I2S_TARGET - queued : 0;
 	}
-	int	level = (int)hstx_di_queue_get_level ();
-	return level < DI_TARGET ? (DI_TARGET - level) * 4 : 0;
+	if (s != SINK_JACK)
+	{
+		int	level = (int)hstx_di_queue_get_level ();
+		hdmi = level < DI_TARGET ? (DI_TARGET - level) * 4 : 0;
+	}
+	if (s == SINK_JACK)
+		return jack;
+	if (s == SINK_HDMI)
+		return hdmi;
+	return jack < hdmi ? jack : hdmi;
 }
 
 static void __not_in_flash_func(pump) (void)
@@ -117,10 +148,12 @@ static void __not_in_flash_func(pump) (void)
 
 		if ((int32_t)(end - pos) <= 0)
 		{
-			// nothing painted: silence, and the play position waits
-			if (s == SINK_JACK)
+			// Nothing painted: silence, and the play position waits. HDMI alone
+			// fills its own gaps; with both sinks each gets the same silence, so
+			// their levels stay together.
+			if (s != SINK_HDMI)
 				while (room-- > 0)
-					push_jack (0, 0);
+					push (s, 0, 0);
 			prev_l = prev_r = 0;
 			break;
 		}
@@ -131,16 +164,8 @@ static void __not_in_flash_func(pump) (void)
 		mr = (int16_t)((prev_r + r) >> 1);
 		prev_l = l;
 		prev_r = r;
-		if (s == SINK_JACK)
-		{
-			push_jack (ml, mr);
-			push_jack (l, r);
-		}
-		else
-		{
-			push_hdmi (ml, mr);
-			push_hdmi (l, r);
-		}
+		push (s, ml, mr);
+		push (s, l, r);
 		pos++;
 		room -= 2;
 	}
@@ -211,15 +236,20 @@ qboolean SNDDMA_Init (void)
 	{
 		hw_up = true;
 		dma_channel_claim (I2S_DMA_CHAN);
-		i2s_ok = audio_i2s_setup (PICO_AUDIO_I2S_DRIVER_TLV320, OUT_RATE, I2S_DMA_CHAN) != NULL;
-		if (i2s_ok)
+		i2s_ok = audio_i2s_setup (Q2_AUDIO_I2S_DRIVER, OUT_RATE, I2S_DMA_CHAN) != NULL;
+		if (!i2s_ok)
+			printf ("q2_audio: no I2S, HDMI only\n");
+		else if (HAS_JACK_DETECT)
 		{
 			audio_i2s_muteInternalSpeaker (true);
 			audio_i2s_setVolume (14);
 			// a headset plugged in at boot arrives as the first poll's CONNECT
 		}
 		else
-			printf ("q2_audio: I2S setup failed, HDMI only\n");
+		{
+			sink = SINK_BOTH;
+			printf ("q2_audio: HDMI and I2S\n");
+		}
 	}
 
 	video_output_set_background_task (q2_audio_core1_task);
@@ -257,7 +287,7 @@ void SNDDMA_Submit (void)
 	__dmb ();					// the frames before the new end are in the ring
 	painted_end = seen_pos + (uint32_t)(ahead > 0 ? ahead : 0);
 
-	if (!i2s_ok)
+	if (!i2s_ok || !HAS_JACK_DETECT)
 		return;
 	ev = tlv320_poll_headphone ();
 	if (ev == HP_TOGGLE_CONNECT)

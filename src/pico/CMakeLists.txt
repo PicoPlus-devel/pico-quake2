@@ -13,6 +13,7 @@ add_executable(quake2
     q2_fatfs_io.c
     q2_flash.c
     q2_input.c
+    q2_nespad.cpp
     q2_psram.c
     q2_sys.c
     q2_usb.cpp
@@ -77,6 +78,8 @@ target_link_libraries(quake2 PRIVATE
     pico_shared_usb_hid
     tinyusb_host
     tinyusb_pico_pio_usb
+    # NES/SNES controller ports (q2_nespad.cpp; unused without NES_PIN_CLK)
+    pico_shared_nespad
 )
 
 pico_enable_stdio_uart(quake2 1)
