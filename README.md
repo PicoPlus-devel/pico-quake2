@@ -35,7 +35,8 @@ test program, which runs the same game code and reproduces the board's colour de
 
 - The three levels of the shareware demo, the attract demo and the menus
 - Video over HDMI at 640×480
-- Sound effects over HDMI, or over the headphone jack while headphones are plugged in
+- Sound effects over HDMI, the Fruit Jam's headphone jack, or a PCM5100A DAC on the Pico
+  Plus 2 board (see [Sound](#sound))
 - USB gamepad input, tested with a DualShock 4 (see [Controls](#controls)); keyboards
   and mice are supported but not yet tested
 - NES and SNES controllers in the controller ports of the Pico Plus 2 board
@@ -342,8 +343,7 @@ This port was developed with an AI coding assistant,
 [Claude Code](https://claude.com/claude-code) by Anthropic. Most of the code written for
 the port, the changes to the Quake II engine, the test tools, this documentation and the
 screenshots were produced by Claude Code, working under the direction of Frank
-Hoedemakers, who made the main design choices and tested the firmware on the Adafruit
-Fruit Jam.
+Hoedemakers, who made the main design choices and tested the firmware on both boards.
 
 ## Licence
 
