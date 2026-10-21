@@ -49,7 +49,10 @@ test program, which runs the same game code and reproduces the board's colour de
   slower in busy scenes. To get there, the view fills only 70% of the screen by default.
   A larger view lowers the frame rate further.
 - **Two boards.** Only the boards listed under [Boards](#boards) are supported. The port
-  needs an RP2350 with 8 MB of PSRAM and 16 MB of flash memory; other boards may follow.
+  needs an RP2350 with 8 MB of PSRAM and 16 MB of flash memory; other boards with that
+  much memory may follow. Boards with 8 MB of flash memory or less do not work: the
+  textures, models and sounds of a level must all fit in the flash memory, and those of
+  most levels do not (see [TECHNICAL.md](TECHNICAL.md#8-mb-flash-boards-investigated-not-supported)).
 - **Overclocked.** The RP2350 runs at 378 MHz, more than twice its rated 150 MHz, with
   its core voltage raised to 1.50 V. This has been reliable on the test board, but it is
   outside the chip's specification.
@@ -299,6 +302,7 @@ The board then stops, so the message stays readable.
 | `/roms/quake2` not found on the SD card | The folder is missing or has a different name |
 | `baseq2/pak0.pak` not found | The game data is not on the card, or not in `roms/quake2/baseq2` |
 | No PSRAM found, or PSRAM too small | The board does not have 8 MB of PSRAM |
+| This level's assets do not fit in the flash asset cache | The board has less than 16 MB of flash memory |
 | Any other message | An error in the game itself; please report it with the text on the screen |
 
 ## Building from source

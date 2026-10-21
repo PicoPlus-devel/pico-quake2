@@ -286,6 +286,11 @@ Environment variables:
 | `Q2_STACK=1` | Reports the stack high-water mark (builds without sanitizers only). |
 
 `hosttest/sweep.sh <basedir>` prints the per-map budget table below.
+- `Q2_FLASH_KB` sets the region size for the sweep.
+- The `fits` column shows whether the level loaded, and whether only after a rebuild.
+- The per-category columns come from `hosttest/fcdump.py <flash-file>`, which lists what an
+  emulated cache region (`Q2_FLASH_FILE`) holds: totals per category, or every entry with
+  `--list`.
 
 `hosttest/screenshots.sh <basedir>` renders the README screenshots into
 `docs/screenshots/`:
@@ -438,12 +443,12 @@ Change it when the layout of the saved structs changes.
 
 | Map | PSRAM peak | Flash cache | Estimated first-visit flash time |
 |---|---|---|---|
-| demo1 | 7137 KB | 6199 KB | 10.6 s |
-| demo2 | 7123 KB | 8044 KB | 13.6 s |
-| demo3 | 7438 KB | 9143 KB | 15.4 s |
+| demo1 | 7260 KB | 6199 KB | 10.6 s |
+| demo2 | 7246 KB | 8044 KB | 13.6 s |
+| demo3 | 7561 KB | 9143 KB | 15.4 s |
 
 Transition chain `demo1 → 2 → 3 → 1 → 2`:
-- **13 MB region:** the PSRAM peak is 7447 KB and no evictions are needed.
+- **13 MB region:** the PSRAM peak is 7561 KB and no evictions are needed.
 - **10.5 MB region:** eviction and two rebuilds occur. The dumped frames are byte-identical
   to the 13 MB run.
 
@@ -542,6 +547,76 @@ first cache write would assert on the Pico Plus 2. The real size is read at run 
 - `q2_flash_init()` cuts the cache region to the chip, so writes never wrap round onto the
   firmware. Below 1 MB there is no cache, and assets stay in PSRAM.
 - The boot log shows the result, e.g. `q2_flash: Winbond flash, JEDEC id ef4018, 16384 KB`.
+
+### 8 MB flash boards (investigated, not supported)
+
+Question: can a board with 8 MB of flash and 8 MB of PSRAM run the game, standalone and
+under pico-bootLoader, without lower sound or texture quality and without changing the
+16 MB boards? Answer: no. Of the demo's levels only demo1 fits. The attract demo
+(`q2demo1.dm2`) plays demo2.
+
+**PSRAM** is not the limit: the port already targets 8 MB. **Flash** is the limit: a level's
+assets must all be in the cache at once, and slower level changes do not help when one
+level alone exceeds the region.
+
+Regions on an 8 MB chip. Each figure includes the two 128 KB directory slots.
+
+| Layout | Cache | Region |
+|---|---|---|
+| Current firmware (cut to the chip by `q2_flash_init`) | `0x10300000–0x10800000` | 5120 KB |
+| Bootloader build, application slot cut to 1 MB | `0x10180000–0x10800000` | 6656 KB |
+| Standalone build, application in the first 1 MB | `0x10100000–0x10800000` | 7168 KB |
+
+Starting the cache directly after the 805 KB image would add 192 KB to either layout. That
+changes nothing below.
+
+Smallest region in which each map loads from a cold cache (`Q2_FLASH_KB` bisected in
+64 KB steps). The following columns apply the levers in turn:
+
+| Map | Cache contents | Smallest region | Lossless levers | + 11 kHz sound | + half-size skins | Both |
+|---|---|---|---|---|---|---|
+| demo1 | 6247 KB | 6528 KB | 5915 KB | | | |
+| demo2 | 8100 KB | 8384 KB | 7750 KB | 6674 KB | 6429 KB | 5353 KB |
+| demo3 | 9210 KB | 9472 KB | 8773 KB | 7596 KB | 7064 KB | 5887 KB |
+
+The contents are KB in 256-byte pages. demo3 breaks down as:
+- sounds 2355 KB;
+- models 2595 KB;
+- skins 2342 KB;
+- textures 1348 KB;
+- sky 385 KB;
+- pics 165 KB.
+
+Levers:
+- **Lossless (estimated, not implemented): 613–699 KB per level.**
+  - Drop the MD2 GL command lists from cached models (112–198 KB). The software renderer
+    never reads them in place.
+  - Skip the player model and its weapon model in single player (373 KB). They are drawn
+    only for other players.
+  - Directory slots of 64 KB instead of 128 KB (128 KB). A level holds at most 557 entries.
+- **Assets kept in PSRAM:** the room up to the 7.5 MB target is 420, 434 and 119 KB. That
+  is not enough for demo2 or demo3, and the heap fragments: see the failure below.
+- **Lower quality (ruled out):**
+  - Sounds at 11 kHz halve the sound share.
+  - Skins at half size remove three quarters of the skin share.
+  - The bootloader layout needs both of them for demo3, which then fits with 769 KB to
+    spare. Full-game levels with more monster types are not measured and may need more.
+
+The current firmware on an 8 MB chip:
+- The attract demo writes flash for an estimated 65 s, empties the cache, and stops with
+  "This level's assets do not fit in the flash asset cache".
+- A cold `map demo3` instead stops with `Hunk_Alloc: out of memory`. The second
+  registration reloads the world model into a fragmented heap: 790 KB is free, the largest
+  block is 217 KB, and `Mod_LoadNodes` needs 225 KB.
+- On 16 MB boards the demo levels never overflow twice. The chain at 10.5 MB rebuilds
+  demo3 without error.
+
+If 8 MB support is taken up later, the 16 MB layout and cache contents must stay as they
+are:
+- Choose the layout at run time from the JEDEC size, with an image size check at build
+  time.
+- Apply any quality trade-off only when the region is small. Sound entries are already
+  keyed by the mixer rate (`S_LoadSound`), so a 16 MB board would never use 11 kHz entries.
 
 ## Engine fixes found by the harness
 

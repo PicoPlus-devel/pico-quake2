@@ -18,6 +18,11 @@ heading exactly the tag name.
   both boards: Quake II can be started from the bootloader's menu, and quitting the game
   returns to it.
 
+### Notes
+
+- Boards with 8 MB of flash memory are not supported: most levels do not fit in it. The
+  game needs 16 MB of flash memory and 8 MB of PSRAM.
+
 ## v0.1-alpha
 
 First pre-release. Quake II runs on the Adafruit Fruit Jam, but this is an early
