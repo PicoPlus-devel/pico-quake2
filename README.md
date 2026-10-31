@@ -55,7 +55,7 @@ test program, which runs the same game code and reproduces the board's colour de
   much memory may follow. Boards with 8 MB of flash memory or less do not work: the
   textures, models and sounds of a level must all fit in the flash memory, and those of
   most levels do not (see [TECHNICAL.md](TECHNICAL.md#8-mb-flash-boards-investigated-not-supported)).
-- **Overclocked.** The RP2350 runs at 378 MHz, more than twice its rated 150 MHz, with
+- **Overclocked.** The RP2350 runs at 384 MHz, more than twice its rated 150 MHz, with
   its core voltage at 1.35 V, just above the 1.30 V limit of the chip's regulator. Both
   are outside the chip's specification. This has been reliable on the test boards.
 - **Slow first load of each level.** The first time a level is loaded, its textures,

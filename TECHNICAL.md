@@ -1,6 +1,6 @@
 # pico-quake2: technical notes
 
-Developer notes for the Quake II port to RP2350 (HSTX video, at least 378 MHz, 8 MB PSRAM,
+Developer notes for the Quake II port to RP2350 (HSTX video, 384 MHz, 8 MB PSRAM,
 320x240). End-user documentation is in README.md.
 
 ## Status
@@ -17,16 +17,17 @@ Phase 2 (performance) has started. Phase 3 is done apart from testing more input
 
 ```sh
 ./fruitjam-build.sh                          # -> build_fruitjam/src/pico/quake2.uf2
-./fruitjam-build.sh -DQ2_CPU_KHZ=504000      # 504 MHz (1.70 V) instead of 378 MHz
+./fruitjam-build.sh -DQ2_CPU_KHZ=504000      # 504 MHz (1.70 V) instead of 384 MHz
 ./adafruitdvisd-build.sh                     # -> build_adafruitdvisd/src/pico/quake2.uf2
 ./fruitjam-build-forbootloader.sh            # -> build_bl_fruitjam/src/pico/quake2.uf2
 ./adafruitdvisd-build-forbootloader.sh       # -> build_bl_adafruitdvisd/src/pico/quake2.uf2
 ```
 
-Options (CMake): `Q2_CPU_KHZ` (a multiple of 126000), `Q2_VREG`, `Q2_ZBUFFER_SRAM`.
-- `Q2_VREG` defaults to `VREG_VOLTAGE_1_35` at 378 MHz and `VREG_VOLTAGE_1_70` above.
-  The pico_shared emulators use 1.50 V at 378 MHz. At 1.35 V the Pico Plus 2 board ran the
-  timedemo at the same speed (22.9 fps), with less heat and a lower power draw.
+Options (CMake): `Q2_CPU_KHZ` (a multiple of 48000, or 126000, 252000 or 504000, see
+`setup_clocks()` in `q2_boot.c`), `Q2_VREG`, `Q2_ZBUFFER_SRAM`.
+- `Q2_VREG` defaults to `VREG_VOLTAGE_1_35` at 384 MHz and `VREG_VOLTAGE_1_70` above.
+  The pico_shared emulators use 1.50 V at 384 MHz. At 378 MHz and 1.35 V the Pico Plus 2
+  board ran the timedemo at the same speed (22.9 fps), with less heat and a lower power draw.
 - 1.35 V is the lowest usable setting: other users found 1.30 V unreliable at 378 MHz.
   Anything above 1.30 V (`VREG_VOLTAGE_MAX`) needs `vreg_disable_voltage_limit()`, which
   `setup_clocks()` calls.
@@ -67,18 +68,18 @@ flash size is overridden (see [Flash layout](#flash-layout-16-mb-boards)).
   trusting its `.flashed` record, and pico_shared CRCs a ROM it left in flash before
   reusing it. An overlap therefore costs refill time only.
 - On HW_CONFIG 2, input is the native USB port (the module's USB-C port) and the NES/SNES
-  ports, as in the loader and the emulators. PLL_USB stays at 48 MHz for the USB
-  controller, so `clk_hstx` runs from `clk_sys` (378 / 3 MHz) there.
+  ports, as in the loader and the emulators. At 384 MHz the USB controller's 48 MHz is
+  divided from PLL_SYS, and `clk_hstx` runs from a retasked PLL_USB, as on the Fruit Jam.
 
 Bring-up and debugging:
 - **Flashing:** `tools/flash.sh <elf> [uart-log]` programs over a CMSIS-DAP probe with
   OpenOCD. With a UART log, it also waits for the boot banner and resets once more if none
   appears.
   - A probe reset (SYSRESETREQ) resets neither the clocks nor the QMI. After `reset halt`,
-    `clk_sys` still runs from PLL_SYS at 378 or 504 MHz, and OpenOCD's flash algorithm
+    `clk_sys` still runs from PLL_SYS at 384 or 504 MHz, and OpenOCD's flash algorithm
     would run the boot ROM's flash routines at that speed. The script therefore switches
     `clk_sys` to `clk_ref` (12 MHz) before programming.
-  - Without that switch, programming an image that runs at 378 MHz or more could leave the
+  - Without that switch, programming an image that runs at 384 MHz or more could leave the
     board unable to boot or to be flashed again until it was powered up in BOOTSEL mode.
   - After `reset halt` or BOOTSEL, XIP reads of flash return zeros: the QSPI pads are not
     set up yet, and BOOTSEL forces SD1's input low. A zero readback in that state does not

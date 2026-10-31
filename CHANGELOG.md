@@ -27,6 +27,9 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 - On the Adafruit Fruit Jam, USB devices were often not found at start-up. Also, after
   switching on with a low-speed mouse attached, sometimes no USB device worked until the
   board was reset.
+- On the Pico Plus 2 board, some TVs and monitors showed small dots or short dotted lines
+  in the picture. The picture is now clean. Thanks to @szuping for the hint that led to
+  this fix.
 
 ### Changed
 
@@ -38,6 +41,7 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 - USB keyboards and mice have now been tested and work.
 - The processor runs at a lower core voltage (1.35 V instead of 1.50 V), so the board
   uses less power and runs cooler.
+- The processor runs at 384 MHz instead of 378 MHz.
 
 ## v0.2.1-alpha
 

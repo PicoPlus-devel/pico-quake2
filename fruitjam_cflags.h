@@ -64,8 +64,6 @@
 #define Q2_LED_PIN 29
 
 // --- USB host on Pico-PIO-USB -----------------------------------------------
-// Also selects the clock path that retasks PLL_USB as the 126 MHz clk_hstx
-// source (q2_boot.c): the native USB controller is unused on this board.
 #define HAS_USBPIO
 #define PIN_USB_HOST_DP (1u)
 #define PIN_USB_HOST_DM (2u)

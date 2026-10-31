@@ -21,7 +21,7 @@
 // RP2350-E9 (chips up to A2, such as the Fruit Jam's): a pad with its input
 // enabled keeps a line that was high at about 2.2 V, and the pull-down cannot
 // bring it back. Pico-PIO-USB switches the inputs off for 8 NOPs before it reads
-// the line state (21 ns at 378 MHz), too short to drain a line, and reads right
+// the line state (21 ns at 384 MHz), too short to drain a line, and reads right
 // after switching them back on. On the Fruit Jam a mouse then often stayed
 // unseen: D- was latched, so D+ and D- both read high (SE1), never an idle state.
 // So while nothing is attached, the inputs stay off between frames (the lines
