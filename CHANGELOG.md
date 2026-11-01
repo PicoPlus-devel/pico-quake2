@@ -6,7 +6,7 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 
 [The files of this release are listed at the end of these notes](#downloads___).
 
-## Unreleased
+## v0.3-alpha
 
 ### Added
 
