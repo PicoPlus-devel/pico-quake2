@@ -34,12 +34,12 @@ target_include_directories(quake2 PRIVATE
 # PICO_STACK_SIZE: core0's stack (cmake/psram_linker.cmake puts it in its own 16 KB
 # region; the engine's measured high-water mark is about 7 KB). Core1 is launched
 # with its own stack array, so the SDK reserves none for it.
-# Q2_CPU_KHZ: 378000 (default) or 504000; Q2_VREG: core voltage for it.
-set(Q2_CPU_KHZ "378000" CACHE STRING "System clock in kHz (a multiple of 126000)")
-if (Q2_CPU_KHZ GREATER 378000)
+# Q2_CPU_KHZ: 384000 (default) or 504000, see q2_boot.c; Q2_VREG: core voltage for it.
+set(Q2_CPU_KHZ "384000" CACHE STRING "System clock in kHz (a multiple of 48000, or 126000, 252000 or 504000)")
+if (Q2_CPU_KHZ GREATER 384000)
     set(_q2_vreg_default VREG_VOLTAGE_1_70)		# as the emulators (pico_shared) at 504 MHz
 else()
-    set(_q2_vreg_default VREG_VOLTAGE_1_50)
+    set(_q2_vreg_default VREG_VOLTAGE_1_35)
 endif()
 set(Q2_VREG "${_q2_vreg_default}" CACHE STRING "Core voltage (VREG_VOLTAGE_*)")
 message(STATUS "pico-quake2 clock: ${Q2_CPU_KHZ} kHz at ${Q2_VREG}")

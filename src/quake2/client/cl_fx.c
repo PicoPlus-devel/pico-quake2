@@ -1818,7 +1818,7 @@ CL_FlyParticles
 #define	BEAMLENGTH			16
 void CL_FlyParticles (vec3_t origin, int count)
 {
-	int			i;
+	int			i, j;
 	cparticle_t	*p;
 	float		angle;
 	float		sr, sp, sy, cr, cp, cy;
@@ -1832,8 +1832,11 @@ void CL_FlyParticles (vec3_t origin, int count)
 
 	if (!avelocities[0][0])
 	{
-		for (i=0 ; i<NUMVERTEXNORMALS*3 ; i++)
-			avelocities[0][i] = (rand()&255) * 0.01;
+		// pico-quake2: row by row; avelocities[0][i] over the whole array indexed past
+		// the first row (UBSan). Same values, in the same order.
+		for (i=0 ; i<NUMVERTEXNORMALS ; i++)
+			for (j=0 ; j<3 ; j++)
+				avelocities[i][j] = (rand()&255) * 0.01;
 	}
 
 
@@ -1920,7 +1923,7 @@ CL_BfgParticles
 #define	BEAMLENGTH			16
 void CL_BfgParticles (entity_t *ent)
 {
-	int			i;
+	int			i, j;
 	cparticle_t	*p;
 	float		angle;
 	float		sr, sp, sy, cr, cp, cy;
@@ -1931,8 +1934,11 @@ void CL_BfgParticles (entity_t *ent)
 	
 	if (!avelocities[0][0])
 	{
-		for (i=0 ; i<NUMVERTEXNORMALS*3 ; i++)
-			avelocities[0][i] = (rand()&255) * 0.01;
+		// pico-quake2: row by row; avelocities[0][i] over the whole array indexed past
+		// the first row (UBSan). Same values, in the same order.
+		for (i=0 ; i<NUMVERTEXNORMALS ; i++)
+			for (j=0 ; j<3 ; j++)
+				avelocities[i][j] = (rand()&255) * 0.01;
 	}
 
 

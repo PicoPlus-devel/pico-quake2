@@ -421,6 +421,14 @@ void CL_PrepRefresh (void)
 	cl.refresh_prepped = true;
 	cl.force_refdef = true;	// make sure we have a valid refdef
 
+	// pico-quake2: the first frame drops the loading plaque only if the level is
+	// prepped by then (CL_ParseFrame). A demo's "precache" runs from Cbuf_Execute
+	// in CL_SendCommand, after CL_ReadPackets, so when one read brings both the
+	// precache and the first frame, the frame comes first and the plaque stayed up
+	// until the demo ended. Drop it here in that case.
+	if (cls.state == ca_active && cls.disable_servercount != cl.servercount)
+		SCR_EndLoadingPlaque ();
+
 	// start the cd track
 	CDAudio_Play (atoi(cl.configstrings[CS_CDTRACK]), true);
 }

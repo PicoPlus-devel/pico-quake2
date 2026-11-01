@@ -770,6 +770,19 @@ void SV_Frame (int msec)
 
     svs.realtime += msec;
 
+	// pico-quake2: a frame longer than 5 s is a level load, and the first load of
+	// a level fills the flash asset cache, which takes minutes. As on the client
+	// (CL_Frame), it does not count towards the client timeouts; otherwise the
+	// local client is dropped without being told and waits for a server that no
+	// longer sends to it.
+	if (msec > 5000)
+	{
+		int		i;
+
+		for (i = 0; i < maxclients->value; i++)
+			svs.clients[i].lastmessage = svs.realtime;
+	}
+
 	// keep the random time dependent
 	rand ();
 

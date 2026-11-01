@@ -1,11 +1,12 @@
 // fcache.c -- flash asset cache (see fcache.h).
 //
 // Region layout: two directory slots of 128 KB (alternating, the newer valid one
-// wins, so an interrupted commit loses only the last level's changes), then the data
-// area. Every asset occupies a contiguous run of 256-byte pages so it can be used in
-// place; small assets share 4 KB erase sectors. NOR flash can program still-erased
-// pages without an erase, so a sector is only erased when a new asset needs pages in
-// it that were written before, and only if nothing live remains in it.
+// wins, so an interrupted commit loses only the changes since the previous one;
+// during a level's load the directory is written every FC_COMMIT_BYTES), then the
+// data area. Every asset occupies a contiguous run of 256-byte pages so it can be
+// used in place; small assets share 4 KB erase sectors. NOR flash can program
+// still-erased pages without an erase, so a sector is only erased when a new asset
+// needs pages in it that were written before, and only if nothing live remains in it.
 // The directory is mirrored in RAM; the page maps are rebuilt from it at boot.
 
 #include "qcommon.h"
@@ -19,6 +20,9 @@
 #define FC_DATA_START	(2 * FC_SLOT_BYTES)
 #define FC_MAX_PAGES	(16 * 1024 * 1024 / FC_PAGE)
 #define FC_SECTOR_PAGES	(FC_SECTOR / FC_PAGE)
+#define FC_COMMIT_BYTES	(1024 * 1024)	// stored data after which the directory is written
+#define FC_COMMIT_CHUNK	4096			// directory bytes built and programmed at a time
+#define FC_NOTICE_BYTES	(512 * 1024)	// stored data of a level after which its load is called slow
 
 typedef struct
 {
@@ -60,6 +64,9 @@ static byte			sector_blocked[FC_MAX_PAGES / FC_SECTOR_PAGES];	// FC_EvictWindow 
 static byte			sector_cost[FC_MAX_PAGES / FC_SECTOR_PAGES];
 static fc_stats_t	stats;
 static qboolean		overflow;		// an asset of this level did not fit
+static unsigned		uncommitted;	// bytes stored since the directory was last written
+static unsigned		level_stored;	// bytes stored since the map changed
+static qboolean		level_notice;	// the first-load notice was printed for this map
 
 /*
 ==============================================================================
@@ -84,14 +91,19 @@ static void FC_CrcInit (void)
 	}
 }
 
-static unsigned FC_Crc (const void *data, int len)
+// Running CRC: start with 0xffffffff, invert the result
+static unsigned FC_CrcUpdate (unsigned c, const void *data, int len)
 {
 	const byte	*p = data;
-	unsigned	c = 0xffffffff;
 
 	while (len--)
 		c = crc_table[(c ^ *p++) & 0xff] ^ (c >> 8);
-	return ~c;
+	return c;
+}
+
+static unsigned FC_Crc (const void *data, int len)
+{
+	return ~FC_CrcUpdate (0xffffffff, data, len);
 }
 
 /*
@@ -482,6 +494,22 @@ static const void *FC_Finish (int slot, const char *name, int kind, unsigned off
 	stats.used_bytes += len;
 	stats.stores++;
 	dirty = true;
+
+	// the first load of a level copies several MB and takes minutes: say so, and
+	// write the directory every FC_COMMIT_BYTES, so that a reset in the middle of
+	// it keeps what was already copied
+	level_stored += len;
+	if (!level_notice && level_stored >= FC_NOTICE_BYTES)
+	{
+		Com_Printf ("\nFirst load of this level: copying its\n"
+			"data from the SD card to flash. This\n"
+			"can take a few minutes; later loads\n"
+			"are fast.\n\n");
+		level_notice = true;
+	}
+	uncommitted += len;
+	if (uncommitted >= FC_COMMIT_BYTES)
+		FC_Commit ();
 	return flash->base + offset;
 }
 
@@ -735,13 +763,38 @@ void FC_BeginLevel (const char *mapname)
 	strncpy (cur_map, mapname, sizeof(cur_map) - 1);
 	cur_seq++;
 	dirty = true;
+	level_stored = 0;
+	level_notice = false;
+}
+
+// The bytes [from, from + len) of a directory slot as written: the header, then the
+// entries with their RAM-only flags cleared, then 0xff. from and len are multiples
+// of the entry size, which is the header size.
+static void FC_SlotImage (byte *buf, unsigned from, unsigned len)
+{
+	fc_entry_t	*e = (fc_entry_t *)buf;
+	unsigned	k;
+
+	for (k = from / sizeof(*e); k < (from + len) / sizeof(*e); k++, e++)
+	{
+		if (k == 0)
+			memcpy (e, &hdr, sizeof(hdr));
+		else if (k <= (unsigned)numentries)
+		{
+			*e = dir[k - 1];
+			e->flags = 0;
+		}
+		else
+			memset (e, 0xff, sizeof(*e));
+	}
 }
 
 void FC_Commit (void)
 {
 	int			i, n, slot;
-	unsigned	bytes;
-	fc_entry_t	*packed;
+	unsigned	bytes, done, chunk, c;
+	fc_entry_t	e;
+	byte		*buf;
 
 	if (!FC_Ready () || !dirty)
 		return;
@@ -760,28 +813,36 @@ void FC_Commit (void)
 	hdr.seq = cur_seq;
 
 	// entries go to flash with their RAM-only flags cleared
-	packed = Z_Malloc (FC_SLOT_BYTES);
-	memset (packed, 0xff, FC_SLOT_BYTES);
+	c = 0xffffffff;
 	for (i = 0; i < numentries; i++)
 	{
-		packed[i + 1] = dir[i];
-		packed[i + 1].flags = 0;
+		e = dir[i];
+		e.flags = 0;
+		c = FC_CrcUpdate (c, &e, sizeof(e));
 	}
-	hdr.dir_crc = FC_Crc (&packed[1], numentries * sizeof(fc_entry_t));
-	memcpy (packed, &hdr, sizeof(hdr));
+	hdr.dir_crc = ~c;
 
+	// The slot image is built FC_COMMIT_CHUNK at a time, since a commit can come in
+	// the middle of a level's load, when PSRAM is short. Entries first, header page
+	// last, so a torn write leaves the slot invalid.
 	bytes = (sizeof(hdr) + numentries * sizeof(fc_entry_t) + FC_PAGE - 1) & ~(FC_PAGE - 1);
+	buf = Z_Malloc (FC_COMMIT_CHUNK);
 	flash->erase (slot * FC_SLOT_BYTES, FC_SLOT_BYTES);
-	// entries first, header page last, so a torn write leaves the slot invalid
-	if (bytes > FC_PAGE)
-		flash->program (slot * FC_SLOT_BYTES + FC_PAGE, (byte *)packed + FC_PAGE, bytes - FC_PAGE);
-	flash->program (slot * FC_SLOT_BYTES, packed, FC_PAGE);
+	for (done = FC_PAGE; done < bytes; done += chunk)
+	{
+		chunk = bytes - done < FC_COMMIT_CHUNK ? bytes - done : FC_COMMIT_CHUNK;
+		FC_SlotImage (buf, done, chunk);
+		flash->program (slot * FC_SLOT_BYTES + done, buf, chunk);
+	}
+	FC_SlotImage (buf, 0, FC_PAGE);
+	flash->program (slot * FC_SLOT_BYTES, buf, FC_PAGE);
 	stats.bytes_erased += FC_SLOT_BYTES;
 	stats.bytes_programmed += bytes;
-	Z_Free (packed);
+	Z_Free (buf);
 
 	active_slot = slot;
 	dirty = false;
+	uncommitted = 0;
 }
 
 void FC_GetStats (fc_stats_t *st)

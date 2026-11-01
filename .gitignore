@@ -1,6 +1,7 @@
 # host harness build output
 hosttest/build/
 hosttest/q2_host
+hosttest/q2_host_sdl
 
 # firmware build directories
 build*/

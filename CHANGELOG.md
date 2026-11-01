@@ -6,6 +6,43 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 
 [The files of this release are listed at the end of these notes](#downloads___).
 
+## Unreleased
+
+### Added
+
+- On the Pico Plus 2 board, an original SNES Mouse can be used in either controller
+  port, with a controller in the other port. Its left button fires and its right button
+  strafes, as on a USB mouse. See
+  [NES and SNES controllers](https://github.com/PicoPlus-devel/pico-quake2#nes-and-snes-controllers)
+  in the README.
+
+### Fixed
+
+- The first load of a level, which takes a few minutes, no longer ends with "Loading
+  plaque timed out.". The attract demo or the level now starts as soon as the load is
+  finished. Before, the screen could stay on the start-up text until the attract demo
+  had played through once.
+- NES and SNES controllers could stop responding after a level was loaded for the first
+  time.
+- On the Adafruit Fruit Jam, USB devices were often not found at start-up. Also, after
+  switching on with a low-speed mouse attached, sometimes no USB device worked until the
+  board was reset.
+- On the Pico Plus 2 board, some TVs and monitors showed small dots or short dotted lines
+  in the picture. The picture is now clean. Thanks to @szuping for the hint that led to
+  this fix.
+
+### Changed
+
+- On the Pico Plus 2 board, USB devices now go on the Pico's own USB-C port, through a
+  USB OTG adapter or Y-cable. The USB-A socket on GPIO 20/21 is no longer used.
+- A notice on the screen explains that the first load of a level is slow.
+- If the board is reset during the first load of a level, the next load continues from
+  what was already copied instead of starting again.
+- USB keyboards and mice have now been tested and work.
+- The processor runs at a lower core voltage (1.35 V instead of 1.50 V), so the board
+  uses less power and runs cooler.
+- The processor runs at 384 MHz instead of 378 MHz.
+
 ## v0.2.1-alpha
 
 The firmware is the same as in v0.2-alpha.

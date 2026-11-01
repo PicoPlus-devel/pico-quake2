@@ -1,6 +1,6 @@
 # pico-quake2: technical notes
 
-Developer notes for the Quake II port to RP2350 (HSTX video, at least 378 MHz, 8 MB PSRAM,
+Developer notes for the Quake II port to RP2350 (HSTX video, 384 MHz, 8 MB PSRAM,
 320x240). End-user documentation is in README.md.
 
 ## Status
@@ -8,7 +8,8 @@ Developer notes for the Quake II port to RP2350 (HSTX video, at least 378 MHz, 8
 Phase 0 (host harness and memory diet) is complete. Phase 1 (firmware) runs on the
 Adafruit Fruit Jam: the attract demo plays from the SD card through the flash asset cache.
 Phase 2 (performance) has started. Phase 3 is done apart from testing more input devices:
-- USB input works (tested with a DualShock 4).
+- USB input works (tested with a DualShock 4, a USB keyboard and a USB mouse), and so does
+  the SNES Mouse in the controller ports of the Pico Plus 2 board.
 - Sound plays over HDMI or the headphone jack.
 - Saves load after a reset and across firmware builds.
 
@@ -16,13 +17,23 @@ Phase 2 (performance) has started. Phase 3 is done apart from testing more input
 
 ```sh
 ./fruitjam-build.sh                          # -> build_fruitjam/src/pico/quake2.uf2
-./fruitjam-build.sh -DQ2_CPU_KHZ=504000      # 504 MHz (1.70 V) instead of 378 MHz
+./fruitjam-build.sh -DQ2_CPU_KHZ=504000      # 504 MHz (1.70 V) instead of 384 MHz
 ./adafruitdvisd-build.sh                     # -> build_adafruitdvisd/src/pico/quake2.uf2
 ./fruitjam-build-forbootloader.sh            # -> build_bl_fruitjam/src/pico/quake2.uf2
 ./adafruitdvisd-build-forbootloader.sh       # -> build_bl_adafruitdvisd/src/pico/quake2.uf2
 ```
 
-Options (CMake): `Q2_CPU_KHZ` (a multiple of 126000), `Q2_VREG`, `Q2_ZBUFFER_SRAM`.
+Options (CMake): `Q2_CPU_KHZ` (a multiple of 48000, or 126000, 252000 or 504000, see
+`setup_clocks()` in `q2_boot.c`), `Q2_VREG`, `Q2_ZBUFFER_SRAM`.
+- `Q2_VREG` defaults to `VREG_VOLTAGE_1_35` at 384 MHz and `VREG_VOLTAGE_1_70` above.
+  The pico_shared emulators use 1.50 V at 384 MHz. At 378 MHz and 1.35 V the Pico Plus 2
+  board ran the timedemo at the same speed (22.9 fps), with less heat and a lower power draw.
+- 1.35 V is the lowest usable setting: other users found 1.30 V unreliable at 378 MHz.
+  Anything above 1.30 V (`VREG_VOLTAGE_MAX`) needs `vreg_disable_voltage_limit()`, which
+  `setup_clocks()` calls.
+- These are CMake cache variables, so an existing build folder keeps the voltage it was
+  configured with. Configure with `--fresh` (or delete the folder) after the default
+  changes; `buildAll.sh` always starts from fresh folders.
 
 Boards. Each has a `<tag>_cflags.h`, force-included into every translation unit, and a
 `<tag>-build.sh`:
@@ -57,25 +68,28 @@ flash size is overridden (see [Flash layout](#flash-layout-16-mb-boards)).
   trusting its `.flashed` record, and pico_shared CRCs a ROM it left in flash before
   reusing it. An overlap therefore costs refill time only.
 - On HW_CONFIG 2, input is the native USB port (the module's USB-C port) and the NES/SNES
-  ports, as in the loader and the emulators. PLL_USB stays at 48 MHz for the USB
-  controller, so `clk_hstx` runs from `clk_sys` (378 / 3 MHz) there.
+  ports, as in the loader and the emulators. At 384 MHz the USB controller's 48 MHz is
+  divided from PLL_SYS, and `clk_hstx` runs from a retasked PLL_USB, as on the Fruit Jam.
 
 Bring-up and debugging:
 - **Flashing:** `tools/flash.sh <elf> [uart-log]` programs over a CMSIS-DAP probe with
   OpenOCD. With a UART log, it also waits for the boot banner and resets once more if none
   appears.
   - A probe reset (SYSRESETREQ) resets neither the clocks nor the QMI. After `reset halt`,
-    `clk_sys` still runs from PLL_SYS at 378 or 504 MHz, and OpenOCD's flash algorithm
+    `clk_sys` still runs from PLL_SYS at 384 or 504 MHz, and OpenOCD's flash algorithm
     would run the boot ROM's flash routines at that speed. The script therefore switches
     `clk_sys` to `clk_ref` (12 MHz) before programming.
-  - Without that switch, programming an image that runs at 378 MHz or more could leave the
+  - Without that switch, programming an image that runs at 384 MHz or more could leave the
     board unable to boot or to be flashed again until it was powered up in BOOTSEL mode.
   - After `reset halt` or BOOTSEL, XIP reads of flash return zeros: the QSPI pads are not
     set up yet, and BOOTSEL forces SD1's input low. A zero readback in that state does not
     mean the flash is erased.
 - **UART:** the console runs at 115200 baud on GPIO 44/45. Lines typed on it run as console
-  commands, and a status line is printed every 5 seconds (fps, PSRAM heap, SRAM heap,
-  flash cache).
+  commands. A build with `Q2_STATUS_DIAG=1` (`src/pico/q2_boot.c`) also prints a status
+  line every 5 seconds (fps, PSRAM heap, SRAM heap, flash cache, stack, failed USB
+  transfers, surface-cache rebuilds); it is off by default. To turn it on, configure a
+  fresh build folder with `CFLAGS=-DQ2_STATUS_DIAG=1` in the environment, for example
+  `CFLAGS=-DQ2_STATUS_DIAG=1 BUILD=build_status ./fruitjam-build.sh`.
   - `tools/uart_cmd.sh <uart-log> <timeout> <regex> <command>...` sends commands and waits
     for a reply line.
   - `tools/timedemo.sh <uart-log>` runs `timedemo 1` on `q2demo1.dm2` and prints the
@@ -137,7 +151,7 @@ tools/release_notes.sh v0.1-alpha   # the CHANGELOG.md section of that tag
 | File | Role |
 |---|---|
 | `src/pico/q2_usb.cpp` | TinyUSB host: Pico-PIO-USB on the Fruit Jam (PIO2, GPIO 1/2 with port power on GPIO 11), the native USB controller on HW_CONFIG 2; a 4 ms timer at the lowest priority runs `tuh_task` and samples every device |
-| `src/pico/q2_nespad.cpp` | NES/SNES controller ports (pico_shared nespad on PIO1), polled from the same timer without blocking and merged into the pad buttons: SNES pads by position, NES pads by name (A → right, B → bottom) |
+| `src/pico/q2_nespad.cpp` | NES/SNES controller ports (pico_shared nespad on PIO1), polled from the same timer without blocking and merged into the pad buttons: SNES pads by position, NES pads by name (A → right, B → bottom). A SNES Mouse (`NESPAD_SNES_MOUSE`, 32-bit reads) is merged into the mouse, its motion accelerated from 4 to 16 units per count by speed. A read is collected and the next started at most once per millisecond: a start within about 5 us of the previous read's end is lost and the state machine waits forever, and after a flash erase the timer runs the missed ticks back to back |
 | `src/pico/q2_usb_frame.c` | The 1 ms USB frame, and SOFs during flash writes |
 | `src/pico/q2_input.c` | HID keyboard usages, mouse and pad buttons to Quake II keys; mouse and right stick to `QG_GetMouseDiff`; the default pad bindings (`QG_PlatformConfig`) |
 | `3rdparty/pico_shared_drivers/usb_hid/` | pico_shared's HID driver, with the right stick and triggers added and the report re-arm fix (below) |
@@ -250,7 +264,7 @@ loop, so it is not done.
 | `src/pico/q2_audio.c` | Sound output (see Sound) |
 | `tools/flash.sh`, `tools/uart_cmd.sh`, `tools/timedemo.sh`, `tools/pcsample.sh` | Flashing over the probe, UART console commands, the timedemo benchmark, profiling |
 | `3rdparty/tlsf/` | TLSF allocator (BSD-3-Clause) |
-| `hosttest/` | Linux host harness |
+| `hosttest/` | Linux host harness (see `hosttest/README.md`); `hosttest/q2_sdl.c` is its window, keyboard, mouse and sound |
 | `hosttest/screenshots.sh`, `docs/screenshots/` | The README screenshots (see Host harness) |
 | `<tag>_cflags.h`, `<tag>-build.sh`, `<tag>-build-forbootloader.sh` | Board configuration, standalone and pico-bootLoader builds (see Firmware) |
 | `buildAll.sh`, `tools/make_demo_zip.py`, `tools/release_notes.sh`, `.github/workflows/BuildAndRelease.yml` | Releases (see Releases) |
@@ -258,9 +272,10 @@ loop, so it is not done.
 ## Host harness
 
 ```sh
-hosttest/build.sh                  # -m32, ASan + UBSan  -> hosttest/q2_host
+hosttest/build.sh                  # -m32, ASan + UBSan  -> hosttest/q2_host, hosttest/q2_host_sdl
 NOSAN=1 hosttest/build.sh          # without sanitizers
 ./hosttest/q2_host <basedir> <frames> <dump-every-N> <outdir> [+commands] [@N command]
+./hosttest/q2_host_sdl <basedir> 0 0 <outdir> [+commands]    # in a window, until it is closed
 python3 hosttest/ppm2png.py <outdir>/frame_00600.ppm
 ```
 
@@ -282,9 +297,33 @@ Environment variables:
 | `Q2_HEAP_KB=n` | Overrides the heap size (to measure demand). |
 | `Q2_FLASH_KB=n` | Flash cache region size (default 13312; 0 disables the cache). |
 | `Q2_FLASH_FILE=path` | Keeps the emulated flash in a file, so a second run starts warm. |
+| `Q2_FLASH_CLOCK=f` | Runs the virtual clock during flash writes, at their typical time × f, and prints a status line every 5 virtual seconds. With f = 10 a cold demo2 load takes about as long as on the board, which shows the engine's timeouts. |
+| `Q2_FLASH_STOP_KB=n` | Ends the run after n KB have been programmed, like a reset in the middle of a cache fill. With `Q2_FLASH_FILE`, the next run starts from what was written. |
+| `Q2_FRAME_MS=n` | Virtual time per frame (default 16). The board's main loop runs about 1 ms frames while the plaque is up. Other values change how the server's 100 ms frames line up with the client's packet reads (23 ms reproduced the plaque that stayed up during the attract demo). |
 | `Q2_MEMTRACE=bytes` | Logs allocations of at least that size with their callers. |
 | `Q2_MEMLIVE=1` | Live-block table, dumped by caller on failure; `hosttest/memlive.sh` resolves it. |
 | `Q2_STACK=1` | Reports the stack high-water mark (builds without sanitizers only). |
+
+`q2_host_sdl` runs the same engine objects, PSRAM model and emulated flash in a window, with
+keyboard, mouse and sound (`hosttest/q2_sdl.c`):
+- **Build:** needs the 32-bit SDL2 development package (`libsdl2-dev:i386`). Without it,
+  `build.sh` builds only `q2_host`.
+- **Clock:** real time, so runs are not deterministic. The engine holds the frame rate to
+  `cl_maxfps` (90). `Q2_FLASH_CLOCK` adds the flash time to the clock, as in `q2_host`.
+- **Frames:** `<frames>` 0 runs until the window is closed. `<frames>`, `<dump-every-N>` and
+  `@N` count drawn frames.
+- **Picture:** 640x480 in the board's RGB555 colours. The window can be resized and keeps 4:3.
+- **Input:** keyboard and mouse. Keys are mapped by position with the firmware's table (SDL
+  scancodes are USB HID usages). The mouse is captured in game and released in the menus, the
+  console and when the window loses focus. Gamepads are not supported.
+- **Sound:** 22050 Hz stereo, played up to what the engine has painted, as on the board.
+- **Defaults:** `QG_PlatformConfig` sets the board's keyboard and mouse defaults: mouse wheel
+  weapon select, freelook, always run, screen size 70 and brightness 0.7. `q2_host` leaves it
+  empty.
+- **`config.cfg`:** settings changed in the menus are saved to `<basedir>/baseq2/config.cfg`,
+  and later `q2_host` runs on that basedir load them too. A scratch basedir with links to
+  `pak0.pak` and `players`, as `screenshots.sh` makes, keeps them apart.
+- **`Q2_STACK`:** SDL's own stack use counts in the high-water mark; measure with `q2_host`.
 
 `hosttest/sweep.sh <basedir>` prints the per-map budget table below.
 - `Q2_FLASH_KB` sets the region size for the sweep.
@@ -363,6 +402,15 @@ time leaves scattered holes.
 1. The level registers with placeholders.
 2. The client empties the cache.
 3. The level registers again, which writes its assets contiguously.
+
+**First load.** A cold level copies 6–9 MB and takes minutes on the board.
+- After 512 KB of a level is stored, the console prints a notice that the first load is
+  slow. The plaque is up during the load, so the notice appears on the start-up console.
+- The directory is written after the level's sounds, at the end of the load, and every
+  1 MB in between. A reset during a first load therefore keeps what was already copied.
+- Writing the directory erases the other 128 KB slot (two block erases, about 0.45 s on
+  the board) and builds the slot image 4 KB at a time. It allocates no 128 KB buffer, so
+  the writes in the middle of a load do not raise the PSRAM peak.
 
 **Integrity.**
 - Each entry has a CRC-32, checked on its first use after boot. This catches regions that
@@ -444,9 +492,17 @@ Change it when the layout of the saved structs changes.
 
 | Map | PSRAM peak | Flash cache | Estimated first-visit flash time |
 |---|---|---|---|
-| demo1 | 7260 KB | 6199 KB | 10.6 s |
-| demo2 | 7246 KB | 8044 KB | 13.6 s |
-| demo3 | 7561 KB | 9143 KB | 15.4 s |
+| demo1 | 7260 KB | 6199 KB | 12.0 s |
+| demo2 | 7246 KB | 8044 KB | 15.6 s |
+| demo3 | 7561 KB | 9143 KB | 18.1 s |
+
+The flash time is estimated from the typical datasheet timings, including the directory
+writes every 1 MB. The board is several times slower:
+- A demo2 load into a region that was not erased spent 84 s in flash operations on the
+  Fruit Jam. Of that, 64 s went to 4 KB sector erases (45 ms each); a 64 KB block erase
+  took 205 ms.
+- With the SD reads and the conversion, a cold first load takes 2–3 minutes.
+- `Q2_FLASH_CLOCK=10` makes the harness about as slow.
 
 Transition chain `demo1 → 2 → 3 → 1 → 2`:
 - **13 MB region:** the PSRAM peak is 7561 KB and no evictions are needed.
@@ -631,10 +687,15 @@ are:
 | Compiler flags | The renderer relies on wrapping signed arithmetic, so the engine is built with `-fwrapv -fno-aggressive-loop-optimizations`. |
 | FPS counter (`cg_drawfps`) | Did not mark its screen area dirty, so with a smaller view (`viewsize`) the old digits were never erased from the border. |
 | `config.cfg` | Stock Quake II writes it only on quit, and the board is switched off instead. It is now written when the menu closes, if an archived cvar or a key binding changed (`com_configmodified`). |
+| Loading plaque | `SCR_UpdateScreen` timed the plaque out after 120 s, and the level loaders call it while they run. For the attract demo the plaque is up from boot, so every cold first load (2–3 minutes) printed "Loading plaque timed out." The timeout is now checked once per frame in `CL_Frame`, and a frame longer than 5 s restarts it. |
+| Server client timeout | The frame after a load passes the whole load time to `SV_Frame`. `SV_CheckTimeouts` then dropped the local client after 125 s without telling it, and the first pass of the attract demo played to nobody. Like the client's own timeout, a frame longer than 5 s no longer counts. |
+| Plaque after a demo's precache | The first frame drops the plaque only if the level is prepped by then (`CL_ParseFrame`). A demo's `precache` runs from `Cbuf_Execute` in `CL_SendCommand`, after `CL_ReadPackets`. When one read brought both the precache and the first frame, the client went active without dropping the plaque, and the first pass of the attract demo played with nothing drawn (seen on the board). `CL_PrepRefresh` now drops it in that case. |
+| Fly and BFG particles | `CL_FlyParticles` and `CL_BfgParticles` filled their table of particle rotation speeds through the first row (`avelocities[0][i]` over the whole array), which is out of bounds and reported by UBSan. They now fill it row by row, with the same values. The board build was not affected (`-fno-aggressive-loop-optimizations`). |
 
 ## Next steps
 
-- Test a keyboard, a mouse and an XInput pad. (The headphone switch works.)
+- Test an XInput pad. (The headphone switch, a USB keyboard and mouse, and the SNES Mouse
+  work.)
 - SRAM is nearly full: 13 KB of the 68 KB SRAM heap is free.
   - USB input took 23 KB.
   - Sound took 32 KB (ring) + 16 KB (I2S) + 36 KB (HDMI queue) + 9 KB (mixer).

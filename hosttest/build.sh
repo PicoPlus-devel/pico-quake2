@@ -1,6 +1,8 @@
 #!/bin/bash
 # Build the Linux host harness from the same engine sources as the firmware.
 #   hosttest/build.sh            -> hosttest/q2_host   (-m32, ASan + UBSan)
+#                                   hosttest/q2_host_sdl (the same in a window, when the
+#                                   32-bit SDL2 package libsdl2-dev:i386 is installed)
 #   NOSAN=1 hosttest/build.sh    -> without sanitizers (faster, for sweeps)
 #   Q2_HOST_CFLAGS=-D...         -> extra compiler flags for every file
 # -m32 keeps pointer-heavy structs the same size as on the ILP32 Cortex-M33.
@@ -50,7 +52,7 @@ compile() {
 }
 export -f compile
 
-rm -f "$OBJ"/*.o
+rm -f "$OBJ"/*.o "$OBJ"/*/*.o
 echo $FILES | tr ' ' '\n' | xargs -P "$(nproc)" -I{} bash -c 'compile {}'
 # savegame name tables, generated from the game sources
 python3 -I "$HERE/../tools/gen_savetables.py" "$SRC/game" "$OBJ/g_savetables.c"
@@ -64,6 +66,20 @@ gcc $CFLAGS -c "$TLSF/tlsf.c" -o "$OBJ/tlsf.o"
 STATIC=$(for o in "$OBJ"/*.o; do [ "${o##*/}" = other_q_mem.o ] || nm -S -t d "$o"; done 2>/dev/null |
 	awk '$3 ~ /^[bBdDcC]$/ && $4 !~ /asan|ubsan|^__/ {s+=$2} END {print s+0}')
 echo "engine static data: $STATIC bytes"
-gcc $CFLAGS -DQ2_ENGINE_STATIC_BYTES=$STATIC -c "$HERE/q2_host.c" -o "$OBJ/q2_host.o"
-gcc -m32 -no-pie $SAN -o "$HERE/q2_host" "$OBJ"/*.o -lm
+# the harness objects go in subdirectories: "$OBJ"/*.o is the engine for both binaries
+mkdir -p "$OBJ/host" "$OBJ/sdl"
+gcc $CFLAGS -DQ2_ENGINE_STATIC_BYTES=$STATIC -c "$HERE/q2_host.c" -o "$OBJ/host/q2_host.o"
+gcc -m32 -no-pie $SAN -o "$HERE/q2_host" "$OBJ"/*.o "$OBJ"/host/*.o -lm
 echo "built $HERE/q2_host"
+
+# q2_host_sdl, against the Debian/Ubuntu multiarch SDL2 for i386
+SDL_PC=/usr/lib/i386-linux-gnu/pkgconfig
+if ! SDL_CFLAGS=$(PKG_CONFIG_LIBDIR=$SDL_PC pkg-config --cflags sdl2 2>/dev/null); then
+	echo "no 32-bit SDL2 (libsdl2-dev:i386): q2_host_sdl not built"
+	exit 0
+fi
+SDL_LIBS=$(PKG_CONFIG_LIBDIR=$SDL_PC pkg-config --libs sdl2)
+gcc $CFLAGS $SDL_CFLAGS -DQ2_ENGINE_STATIC_BYTES=$STATIC -DQ2_HOST_SDL -c "$HERE/q2_host.c" -o "$OBJ/sdl/q2_host.o"
+gcc $CFLAGS $SDL_CFLAGS -c "$HERE/q2_sdl.c" -o "$OBJ/sdl/q2_sdl.o"
+gcc -m32 -no-pie $SAN -o "$HERE/q2_host_sdl" "$OBJ"/*.o "$OBJ"/sdl/*.o $SDL_LIBS -lm
+echo "built $HERE/q2_host_sdl"

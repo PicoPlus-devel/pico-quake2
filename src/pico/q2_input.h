@@ -52,9 +52,15 @@ void q2_input_sample (const q2_usb_state_t *s);
 
 // q2_nespad.cpp: the NES/SNES controller ports, on boards that have them
 // (NES_PIN_CLK in the board header); no-ops elsewhere. q2_nespad_buttons runs in
-// the USB timer interrupt and returns io::GamePadState::Button bits.
+// the USB timer interrupt and returns io::GamePadState::Button bits. A SNES
+// Mouse (NESPAD_SNES_MOUSE): q2_nespad_mouse_buttons, in the same interrupt
+// after q2_nespad_buttons, returns its buttons (bit 0 left, 1 right), and
+// q2_nespad_mouse_motion adds its motion since the last call to *dx and *dy
+// (with the interrupts off).
 void q2_nespad_init (void);
 uint32_t q2_nespad_buttons (void);
+uint8_t q2_nespad_mouse_buttons (void);
+void q2_nespad_mouse_motion (int *dx, int *dy);
 
 #ifdef __cplusplus
 }

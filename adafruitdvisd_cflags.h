@@ -21,12 +21,14 @@
 //   Q2_AUDIO_I2S_DRIVER  PCM5100A: no codec and no headphone detect, so
 //                        q2_audio.c plays to HDMI and I2S at the same time.
 //                        Harmless with no DAC fitted.
-//   NES_PIN_*            the two controller ports, polled by q2_nespad.cpp.
+//   NES_PIN_*            the two controller ports, polled by q2_nespad.cpp: NES or
+//                        SNES pads, or a SNES Mouse (NESPAD_SNES_MOUSE).
 //   no HAS_USBPIO        the USB host is the RP2350's own controller, on the
 //                        module's USB-C port (through an OTG adapter or Y-cable),
 //                        as pico_shared builds this config and as pico-doom,
-//                        pico-duke3D and pico-lutionX do. PLL_USB stays at 48 MHz
-//                        for it, and clk_hstx runs from clk_sys (q2_boot.c).
+//                        pico-duke3D and pico-lutionX do. At 384 MHz its 48 MHz
+//                        is divided from PLL_SYS, and clk_hstx runs from
+//                        PLL_USB (q2_boot.c).
 //
 
 #define HW_CONFIG 2		// also selects nespad.cpp's PIO program (separate CLK/LAT per port)
@@ -89,6 +91,9 @@
 #define NES_PIN_DATA_1 10
 #define NES_PIN_LAT_1 11
 #define NES_PIO_1 pio1
+// An original SNES Mouse in either port. Each read clocks 32 bits instead of 18
+// (about 390 us instead of 220 us), which q2_nespad.cpp collects on the next tick.
+#define NESPAD_SNES_MOUSE 1
 
 // --- USB host: the native controller (no HAS_USBPIO, see above) ---------------
 // The PicoNES PCB has no USB socket of its own: USB devices go on the module's

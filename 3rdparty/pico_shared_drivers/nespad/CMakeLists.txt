@@ -5,7 +5,10 @@
 # only, no pico_generate_pio_header needed. nespad.cpp reads the force-included
 # HW_CONFIG macro to select the shared-CLK/LAT program variant (Murmulator M2).
 #
-# Copied from pico_shared a7cc387 (18-clock read, nespad_padtype[]).
+# Copied from pico-lutionX, which has pico_shared fb9ad91 (SNES Mouse with
+# NESPAD_SNES_MOUSE, which the board header defines; 18-clock read otherwise,
+# nespad_padtype[]) and the patch below with nespad_read_start() doing nothing
+# while a read is pending.
 #
 # LOCAL PATCH (keep on resync / upstream to pico_shared): nespad_read_ready()
 # in nespad.{h,cpp}, marked pico-quake2: -- non-blocking "finish will not

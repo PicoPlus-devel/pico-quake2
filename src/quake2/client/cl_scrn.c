@@ -1288,15 +1288,11 @@ void SCR_UpdateScreen (void)
 
 	// if the screen is disabled (loading plaque is up, or vid mode changing)
 	// do nothing at all
+	// pico-quake2: the plaque's timeout is checked in CL_Frame. The level loaders
+	// call this function while they run, and the first load of a level, which
+	// fills the flash asset cache, can take minutes.
 	if (cls.disable_screen)
-	{
-		if (Sys_Milliseconds() - cls.disable_screen > 120000)
-		{
-			cls.disable_screen = 0;
-			Com_Printf ("Loading plaque timed out.\n");
-		}
 		return;
-	}
 
 	if (!scr_initialized || !con.initialized)
 		return;				// not initialized yet

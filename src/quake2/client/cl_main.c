@@ -1739,7 +1739,22 @@ void CL_Frame (int msec)
 
 	// if in the debugger last frame, don't timeout
 	if (msec > 5000)
+	{
 		cls.netchan.last_received = Sys_Milliseconds ();
+		// pico-quake2: nor count it towards the loading plaque's timeout. Such a
+		// frame is a level load, and the first load of a level fills the flash
+		// asset cache, which takes minutes.
+		if (cls.disable_screen)
+			cls.disable_screen = Sys_Milliseconds ();
+	}
+
+	// pico-quake2: moved here from SCR_UpdateScreen, which the level loaders call
+	// while they run
+	if (cls.disable_screen && Sys_Milliseconds () - cls.disable_screen > 120000)
+	{
+		cls.disable_screen = 0;
+		Com_Printf ("Loading plaque timed out.\n");
+	}
 
 	// fetch results from server
 	CL_ReadPackets ();

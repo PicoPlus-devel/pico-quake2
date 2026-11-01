@@ -37,9 +37,10 @@ test program, which runs the same game code and reproduces the board's colour de
 - Video over HDMI at 640×480
 - Sound effects over HDMI, the Fruit Jam's headphone jack, or a PCM5100A DAC on the Pico
   Plus 2 board (see [Sound](#sound))
-- USB gamepad input, tested with a DualShock 4 (see [Controls](#controls)); keyboards
-  and mice are supported but not yet tested
-- NES and SNES controllers in the controller ports of the Pico Plus 2 board
+- USB gamepad, keyboard and mouse input, tested with a DualShock 4 and a USB keyboard and
+  mouse (see [Controls](#controls))
+- NES and SNES controllers in the controller ports of the Pico Plus 2 board, and an
+  original SNES Mouse
 - Savegames and settings on the SD card
 - Errors are shown on the screen, so no serial cable or computer is needed to find out
   what went wrong
@@ -54,20 +55,22 @@ test program, which runs the same game code and reproduces the board's colour de
   much memory may follow. Boards with 8 MB of flash memory or less do not work: the
   textures, models and sounds of a level must all fit in the flash memory, and those of
   most levels do not (see [TECHNICAL.md](TECHNICAL.md#8-mb-flash-boards-investigated-not-supported)).
-- **Overclocked.** The RP2350 runs at 378 MHz, more than twice its rated 150 MHz, with
-  its core voltage raised to 1.50 V. This has been reliable on the test board, but it is
-  outside the chip's specification.
+- **Overclocked.** The RP2350 runs at 384 MHz, more than twice its rated 150 MHz, with
+  its core voltage at 1.35 V, just above the 1.30 V limit of the chip's regulator. Both
+  are outside the chip's specification. This has been reliable on the test boards.
 - **Slow first load of each level.** The first time a level is loaded, its textures,
   models and sounds are copied from the SD card into the board's flash memory. This
-  takes considerably longer than later loads of the same level; the board's LED blinks
-  while the copy is in progress. The copy is kept when the board is switched off. If
-  other firmware overwrites that part of the flash, or the game data on the card
-  changes, the copy is checked and refreshed automatically.
+  takes a few minutes, considerably longer than later loads of the same level. A notice
+  on the screen says so, and the board's LED blinks while the copy is in progress. The
+  copy is kept when the board is switched off; if the board is reset during the copy,
+  the next load continues from what was already copied. If other firmware overwrites
+  that part of the flash, or the game data on the card changes, the copy is checked and
+  refreshed automatically.
 - **Only the demo has been tested.** The data files of the full game are read the same
   way, but none of its levels have been tried, and some may not fit in memory.
-- **Untested input devices.** Of the USB devices, only a Sony DualShock 4 has been
-  tested. Keyboards, mice, Xbox-compatible (XInput) pads and other USB gamepads are
-  supported by the code but have not been tested yet.
+- **Untested input devices.** Of the USB gamepads, only a Sony DualShock 4 has been
+  tested. Xbox-compatible (XInput) pads and other USB gamepads are supported by the code
+  but have not been tested yet.
 - **Not every action is on the gamepad.** Using an inventory item, such as Quad Damage
   or the rebreather, and selecting a weapon directly require a keyboard.
 - **No music.** The original game played its music from the CD, which is not supported.
@@ -102,6 +105,11 @@ Pico 2 has no PSRAM and does not work. It is wired as follows:
 
 USB devices are connected to the USB-C port of the Pico Plus 2 through a USB OTG adapter
 or Y-cable, which also has to supply the board's power; several devices need a USB hub.
+The board draws the most current while the game starts. If a bus-powered hub with several
+devices is connected, or a SNES Mouse is also plugged in, the supply may not keep up, and
+the board then restarts again and again during start-up. A powered USB hub, or a stronger
+supply on the Y-cable, prevents this. Alternatively, connect some of the devices after
+the attract demo has started.
 
 ## PicoNES PCB
 
@@ -136,8 +144,9 @@ without PSRAM and cannot run the game.
 - **Controllers.** On v2.8, SNES controllers plug in directly; on v2.6, NES
   controllers do, and a SNES controller needs a
   [SNES-to-NES adapter cable](https://github.com/PicoPlus-devel/pico-snesPlus/blob/main/snestonescontroller.md),
-  one per port. See [NES and SNES controllers](#nes-and-snes-controllers) for the
-  layout. A USB keyboard, mouse or gamepad goes on the Pico Plus 2's USB-C port
+  one per port. An original SNES Mouse can be used in either port in the same way. See
+  [NES and SNES controllers](#nes-and-snes-controllers) for the layout. A USB keyboard,
+  mouse or gamepad goes on the Pico Plus 2's USB-C port
   through an OTG adapter or Y-cable (see [Boards](#boards)).
 - **Sound.** Over HDMI. The PCB has no place for the optional PCM5100A DAC; its pins are
   used by controller port 2.
@@ -182,7 +191,7 @@ For questions about the case, please contact the designer on the Thingiverse pag
   folder of the full game (untested, see above)
 - An HDMI screen
 - A USB gamepad, or a USB keyboard and preferably a mouse; on the Pico Plus 2 board, a
-  NES or SNES controller can be used as well
+  NES or SNES controller and a SNES Mouse can be used as well
 - Optionally, headphones (Fruit Jam) or a PCM5100A DAC (Pico Plus 2 board)
 
 ## Installing
@@ -307,6 +316,14 @@ table above: **B** fires, **A** jumps, **Y** crouches, **X** selects the next we
 jumps and goes back. Some SNES controllers are only recognised once **A**, **X**, **L**
 or **R** has been pressed; until then, **B** and **Y** act as a NES controller's **A**
 and **B**.
+
+An original SNES Mouse can be used instead of, or together with, a USB mouse. It plugs
+into either port (on the v2.6 board through a SNES-to-NES adapter cable), and a
+controller can be used in the other port at the same time. Its left button fires and its
+right button strafes, as on a USB mouse. The mouse has a low resolution, so its movement
+is accelerated: slow movements turn the view in small steps for aiming, fast movements
+turn it about as far as a USB mouse does. The mouse speed setting in **Options** applies
+to it as well.
 
 ### Keyboard and mouse
 

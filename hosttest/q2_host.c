@@ -18,10 +18,18 @@
  *
  * The flash asset cache gets an emulated NOR region of Q2_FLASH_KB (default 13312,
  * the region after a 2.5 MB app slot on a 16 MB board; 0 disables the cache). Q2_FLASH_FILE=<path> keeps the region in a file between
- * runs, so a second run shows a warm cache.
+ * runs, so a second run shows a warm cache. Q2_FLASH_CLOCK=<factor> lets the virtual
+ * clock run during flash writes (their typical time times factor), so a cold level
+ * load takes as long as on the board. Q2_FLASH_STOP_KB=<n> ends the run after n KB
+ * programmed, as a reset in the middle of a cache fill. Q2_FRAME_MS=<n> sets the
+ * virtual time per frame (default 16).
  *
  * Q2_STACK=1 (builds without sanitizers) reports how deep the engine used the stack:
  * a region below main's frame is painted before the run and scanned afterwards.
+ *
+ * q2_host_sdl is this file built with -DQ2_HOST_SDL, plus q2_sdl.c: the same run in a
+ * window with keyboard, mouse and sound, on real time. <frames> 0 runs until the window
+ * is closed; there <frames> and @N count drawn frames.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,14 +51,23 @@
 
 void Cbuf_AddText (char *text);
 
+#ifdef Q2_HOST_SDL
+/* q2_sdl.c: the window; it also has the input, sound and platform config hooks */
+int q2_sdl_init(void);
+int q2_sdl_poll(void);
+int q2_sdl_ticks(void);
+void q2_sdl_present(const byte *fb, byte palette[256][3]);
+#endif
+
 #ifndef Q2_ENGINE_STATIC_BYTES
 #define Q2_ENGINE_STATIC_BYTES 0
 #endif
 #define PSRAM_BYTES (8 * 1024 * 1024)
 
-#define FRAME_MS 16
+#define FRAME_MS 16	/* Q2_FRAME_MS overrides it */
+static int frame_ms = FRAME_MS;
 
-static int vtime;
+static int vtime;	/* the virtual clock; with SDL only the flash time (Q2_FLASH_CLOCK) */
 static int frame_no;
 static int dump_every;
 static const char *outdir;
@@ -60,13 +77,17 @@ static byte palette[256][3];
 
 /* ---- quakegeneric platform hooks ---- */
 
+#ifdef Q2_HOST_SDL
+int QG_Milliseconds(void) { return q2_sdl_ticks() + vtime; }
+#else
 int QG_Milliseconds(void) { return vtime; }
 void QG_GetMouseDiff(int *dx, int *dy) { *dx = *dy = 0; }
 void QG_CaptureMouse(void) {}
 void QG_ReleaseMouse(void) {}
+const char *QG_PlatformConfig(void) { return ""; }
+#endif
 void QG_Mkdir(const char *path) { mkdir(path, 0777); }
 const char *QG_ConsoleInput(void) { return NULL; }
-const char *QG_PlatformConfig(void) { return ""; }
 
 /* directory listing: opendir + fnmatch on the last path component */
 static DIR *find_dir;
@@ -167,8 +188,12 @@ void SWimp_EndFrame(void)
 	frame_no++;
 	if (dump_every > 0 && frame_no % dump_every == 0)
 		dump_ppm();
+#ifdef Q2_HOST_SDL
+	q2_sdl_present(fb, palette);
+#endif
 }
 
+#ifndef Q2_HOST_SDL
 /* ---- SNDDMA: fake 22050 Hz stereo ring that advances with the virtual clock ---- */
 
 #define DMA_SAMPLES 8192 /* mono samples (stereo pairs * 2), power of two */
@@ -205,11 +230,26 @@ void SNDDMA_Submit(void)
 			audio_peak = a;
 	}
 }
+#endif
 
 /* ---- flash: emulated NOR region for the asset cache ---- */
 
 static fc_flash_t flash;
 static double flash_ms;		/* estimated time of erase/program operations */
+static double flash_clock;	/* Q2_FLASH_CLOCK: the virtual clock advances by flash_ms times this */
+static double flash_clock_ms;	/* the part not yet added to vtime */
+static unsigned long long flash_stop;	/* Q2_FLASH_STOP_KB, in bytes; 0 = never */
+static unsigned long long flash_programmed;
+
+static void flash_time(double ms)
+{
+	flash_ms += ms;
+	if (flash_clock > 0) {
+		flash_clock_ms += ms * flash_clock;
+		vtime += (int)flash_clock_ms;
+		flash_clock_ms -= (int)flash_clock_ms;
+	}
+}
 
 static void flash_erase(unsigned offset, unsigned len)
 {
@@ -221,9 +261,9 @@ static void flash_erase(unsigned offset, unsigned len)
 	/* W25Q128-class typical timings: 64 KB block 150 ms, 4 KB sector 45 ms */
 	while (len) {
 		if (offset % 65536 == 0 && len >= 65536) {
-			flash_ms += 150; offset += 65536; len -= 65536;
+			flash_time(150); offset += 65536; len -= 65536;
 		} else {
-			flash_ms += 45; offset += FC_SECTOR; len -= FC_SECTOR;
+			flash_time(45); offset += FC_SECTOR; len -= FC_SECTOR;
 		}
 	}
 }
@@ -237,7 +277,16 @@ static void flash_program(unsigned offset, const void *data, unsigned len)
 	const byte *src = data;
 	for (unsigned i = 0; i < len; i++)
 		flash.base[offset + i] &= src[i];	/* NOR: programming only clears bits */
-	flash_ms += 0.4 * (len / FC_PAGE);	/* typical page program time */
+	flash_time(0.4 * (len / FC_PAGE));	/* typical page program time */
+
+	/* a reset in the middle of a cache fill: what was programmed stays in Q2_FLASH_FILE */
+	flash_programmed += len;
+	if (flash_stop && flash_programmed >= flash_stop) {
+		printf("q2_host: stopped after %llu KB programmed (Q2_FLASH_STOP_KB), at %d ms\n",
+			flash_programmed / 1024, QG_Milliseconds());
+		fflush(stdout);
+		_exit(0);
+	}
 }
 
 static void flash_setup(void)
@@ -245,9 +294,13 @@ static void flash_setup(void)
 	const char *kb = getenv("Q2_FLASH_KB");
 	unsigned size = (kb ? (unsigned)atoi(kb) : 13312) * 1024u;
 	const char *file = getenv("Q2_FLASH_FILE");
+	const char *clk = getenv("Q2_FLASH_CLOCK");
+	const char *stop = getenv("Q2_FLASH_STOP_KB");
 
 	if (!size)
 		return;
+	flash_clock = clk ? atof(clk) : 0;
+	flash_stop = stop ? strtoull(stop, NULL, 10) * 1024 : 0;
 	if (file) {
 		int fd = open(file, O_RDWR | O_CREAT, 0644);
 		struct stat st;
@@ -297,6 +350,22 @@ __attribute__((noinline)) static size_t stack_used(volatile unsigned char *top)
 
 /* ---- main ---- */
 
+/* "@N command" from the command line */
+static struct { int frame; char cmd[256]; } sched[32];
+static int nsched;
+
+static void run_scheduled(int frame)
+{
+	for (int s = 0; s < nsched; s++)
+		if (sched[s].frame == frame) {
+			qmem_stats_t st;
+			Qmem_GetStats(&st);
+			printf("q2_host: frame %d: '%.*s' (heap peak so far %zu KB)\n", frame,
+				(int)strlen(sched[s].cmd) - 1, sched[s].cmd, st.peak / 1024);
+			Cbuf_AddText(sched[s].cmd);
+		}
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 5) {
@@ -317,8 +386,6 @@ int main(int argc, char **argv)
 	qargv[qargc++] = "+set";
 	qargv[qargc++] = "basedir";
 	qargv[qargc++] = (char *)basedir;
-	struct { int frame; char cmd[256]; } sched[32];
-	int nsched = 0;
 	for (int i = 5; i < argc && qargc < 63; i++) {
 		if (argv[i][0] == '@' && i + 1 < argc && nsched < 32) {
 			sched[nsched].frame = atoi(argv[i] + 1);
@@ -347,6 +414,10 @@ int main(int argc, char **argv)
 	}
 
 	flash_setup();
+#ifdef Q2_HOST_SDL
+	if (!q2_sdl_init())
+		return 1;
+#endif
 
 	volatile unsigned char stack_top;
 	int stack_check = getenv("Q2_STACK") != NULL;
@@ -359,22 +430,52 @@ int main(int argc, char **argv)
 	vtime = 1;
 	Quake2_Init(qargc, qargv);
 
-	for (int i = 0; i < frames; i++) {
-		for (int s = 0; s < nsched; s++)
-			if (sched[s].frame == i) {
-				qmem_stats_t st;
-				Qmem_GetStats(&st);
-				printf("q2_host: frame %d: '%.*s' (heap peak so far %zu KB)\n", i,
-					(int)strlen(sched[s].cmd) - 1, sched[s].cmd, st.peak / 1024);
-				Cbuf_AddText(sched[s].cmd);
-			}
-		vtime += FRAME_MS;
-		Quake2_Frame(FRAME_MS);
+#ifdef Q2_HOST_SDL
+	/* Real time, as the board's main loop; the engine holds the frame rate to
+	 * cl_maxfps. Runs until the window is closed or <frames> frames are drawn. */
+	int last = QG_Milliseconds(), sched_frame = -1;
+	while ((frames <= 0 || frame_no < frames) && q2_sdl_poll()) {
+		if (frame_no != sched_frame) {
+			run_scheduled(frame_no);
+			sched_frame = frame_no;
+		}
+		int now = QG_Milliseconds();
+		if (now - last < 1) {
+			usleep(1000);
+			continue;
+		}
+		Quake2_Frame(now - last);
+		last = now;
 	}
+#else
+	/* Each frame gets the virtual time since the previous one: frame_ms, plus the
+	 * flash time of a cache fill with Q2_FLASH_CLOCK, which then also gets a line
+	 * every 5 virtual seconds, as the board's status line. */
+	if (getenv("Q2_FRAME_MS"))
+		frame_ms = atoi(getenv("Q2_FRAME_MS"));
+	int last = vtime, status_t = vtime, status_frames = frame_no;
+	for (int i = 0; i < frames; i++) {
+		run_scheduled(i);
+		vtime += frame_ms;
+		int msec = vtime - last;
+		last = vtime;
+		Quake2_Frame(msec);
+		if (flash_clock > 0 && vtime - status_t >= 5000) {
+			printf("q2_host: t=%d s, %d frames drawn in %d ms\n", vtime / 1000,
+				frame_no - status_frames, vtime - status_t);
+			status_t = vtime;
+			status_frames = frame_no;
+		}
+	}
+#endif
 
 	clock_gettime(CLOCK_MONOTONIC, &t1);
 	double secs = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+#ifdef Q2_HOST_SDL
+	printf("q2_host: %d frames rendered in %.2f s wall\n", frame_no, secs);
+#else
 	printf("q2_host: %d frames rendered in %.2f s wall, audio peak %d\n", frame_no, secs, audio_peak);
+#endif
 
 	if (stack_check)
 		printf("q2_host: stack high-water %zu bytes below main\n", stack_used(&stack_top));

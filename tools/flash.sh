@@ -9,7 +9,7 @@
 # flaky USB link, and the old image keeps running.
 #
 # A probe reset (SYSRESETREQ) resets neither the clocks nor the QMI, so after
-# `reset halt` clk_sys still runs from PLL_SYS at the image's 378/504 MHz and
+# `reset halt` clk_sys still runs from PLL_SYS at the image's 384/504 MHz and
 # OpenOCD's flash algorithm would drive the bootrom's flash routines that fast.
 # clk_sys is switched to clk_ref (12 MHz XOSC) first; the glitchless mux makes
 # this safe on a halted core.

@@ -8,7 +8,8 @@
 // seen: the HID driver only re-arms an endpoint from tuh_task, and a device
 // reports nothing but its latest state. Each tick passes a sample to
 // q2_input_sample (q2_input.c), with the NES/SNES controller ports
-// (q2_nespad.cpp) merged into the gamepad buttons.
+// (q2_nespad.cpp) merged into the gamepad buttons, and a SNES Mouse in one of
+// them into the mouse.
 //
 // With PIO-USB, the 1 ms USB frame runs from its own SRAM-resident interrupt
 // (q2_usb_frame.c), which also keeps SOFs going while flash is written. The
@@ -91,6 +92,7 @@ static void usb_sample (void)
 	m.wheel = 0;
 
 	s.pad_buttons |= q2_nespad_buttons ();
+	s.mouse_buttons |= q2_nespad_mouse_buttons ();	// of the read just collected
 
 	q2_input_sample (&s);
 }
@@ -111,6 +113,7 @@ void q2_usb_mouse_motion (int *dx, int *dy)
 	*dx = m.dx;
 	*dy = m.dy;
 	m.dx = m.dy = 0;
+	q2_nespad_mouse_motion (dx, dy);
 	restore_interrupts (irq);
 }
 
