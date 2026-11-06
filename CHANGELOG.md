@@ -6,6 +6,16 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 
 [The files of this release are listed at the end of these notes](#downloads___).
 
+## v0.3.1-alpha
+
+### Fixed
+
+- The game can now be quit with a controller
+  ([#4](https://github.com/PicoPlus-devel/pico-quake2/issues/4)). On the "Quit? Y/N"
+  screen, the bottom face button (A / Cross, or B on a NES or SNES controller) answers
+  yes, and the right face button or Start answers no. On a keyboard, Enter now also
+  answers yes.
+
 ## v0.3-alpha
 
 ### Added

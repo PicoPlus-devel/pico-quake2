@@ -3913,6 +3913,10 @@ const char *M_Quit_Key (int key)
 		M_PopMenu ();
 		break;
 
+	// Enter as well, so a gamepad can answer: in menus its bottom face button
+	// sends Enter, and its right face button and Start send Escape (q2_input.c)
+	case K_KP_ENTER:
+	case K_ENTER:
 	case 'Y':
 	case 'y':
 		cls.key_dest = key_console;

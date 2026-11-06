@@ -307,6 +307,10 @@ Buttons are named by their position. The bottom face button is **A** on an Xbox 
 The right stick works on pads that report one, such as Xbox-compatible pads, the
 DualShock 4 and the DualSense.
 
+The quit screen asks "Quit? Y/N". The bottom face button answers yes; the right face
+button or Start answers no. On a keyboard, **Y** or **Enter** quits, and **N** or
+**Esc** returns to the menu.
+
 ### NES and SNES controllers
 
 On the Pico Plus 2 board, controllers in the two NES/SNES ports work like a USB gamepad
