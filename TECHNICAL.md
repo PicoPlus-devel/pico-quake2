@@ -145,7 +145,10 @@ tools/release_notes.sh v0.1-alpha   # the CHANGELOG.md section of that tag
   Every release, `-alpha` tags included, is published as a regular release: GitHub
   never marks a pre-release as the latest release, so the repository page would not
   show it. The release text is the tag's section of `CHANGELOG.md`; the workflow fails
-  if there is none.
+  if there is none. `tools/release_notes.sh` joins the wrapped lines of each paragraph
+  and list item (`.github/scripts/unwrap_markdown.py`, as in pico-bootLoader), because
+  GitHub shows release notes like a comment, where every line break stays a break.
+  `CHANGELOG.md` stays wrapped.
 - **Firmware.** `buildAll.sh` builds each board in a fresh `build_release_<board>`,
   because CMake options are sticky: a development tree could carry `Q2_CPU_KHZ` or
   `Q2_ZBUFFER_SRAM` into a release. `Q2_RELEASE_VERSION` stamps the UF2's binary info
