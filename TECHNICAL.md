@@ -43,6 +43,7 @@ Boards. Each has a `<tag>_cflags.h`, force-included into every translation unit,
 | `fruitjam` | Adafruit Fruit Jam (HW_CONFIG 8): TLV320 DAC with headphone detect, PIO-USB on GPIO 1/2 | `adafruit_fruit_jam` |
 | `adafruitdvisd` | pico_shared HW_CONFIG 2: Pimoroni Pico Plus 2 with the Adafruit DVI breakout (HSTX on GPIO 12–19, not inverted) and microSD breakout (SPI0 on GPIO 2–5); USB host on the native USB port (USB-C); NES/SNES ports on GPIO 6–8 and 9–11; optional PCM5100A on GPIO 26–28 | `pico2` |
 | `pizeroliupcb` | pico_shared HW_CONFIG 18: Waveshare RP2350-PiZero on Liu Szuping's PCB. HSTX on GPIO 12–19, inverted, as on the Fruit Jam; the PiZero's SD slot on SPI1 (SCK 30, MOSI 31, MISO 40, CS 43); PIO-USB on GPIO 28/29 without a VBUS switch; NES/SNES ports on GPIO 2–4 and 5–7; PCM5102 on GPIO 9–11; PSRAM soldered on, CS 47; UART0 on GPIO 0/1 | `waveshare_rp2350_pizero` (in `boards/`) |
+| `picocomputer3` | pico_shared HW_CONFIG 17: Pico Computer 3, not yet tested on hardware. HSTX on GPIO 12–19, inverted, as on the Fruit Jam; SD slot on SPI1 (SCK 30, MOSI 31, MISO 28, CS 33); USB host on the native controller, behind the board's four-port hub; NES/SNES ports on the I/O header with shared CLK 4 and LAT 5, DATA 6 and 7; PCM5102 on GPIO 10/11 (BCK, LRCK) and 22 (DIN); PSRAM on the board, CS 47; UART1 on GPIO 8/9 | `weact_studio_rp2350b_core` |
 
 `pico2` is what pico_shared's `bld.sh` uses for HW_CONFIG 2. Its header declares an
 RP2350A with 4 MB of flash, but GPIO 47 (PSRAM chip select) is still driven, and the
@@ -55,6 +56,16 @@ does not ship it, so a verbatim copy is kept in `boards/`, which `CMakeLists.txt
 PIO-SPI fallback cannot reach pins above 31. A USB hub on the PiZero's PIO-USB port does
 not work, so only one USB device can be used there.
 
+`weact_studio_rp2350b_core` is the header pico_shared uses for HW_CONFIG 17; the pico-sdk
+ships it. It declares an RP2350B with 16 MB of flash, which the SD pins on GPIO 30/31/33
+need. Its default UART is UART0 on GPIO 12/13, two HSTX pins, so `picocomputer3_cflags.h`
+moves the console to UART1 on GPIO 8/9; the hardfault breadcrumb in `q2_boot.c` writes to
+`uart_default` for that reason. Both NES/SNES ports share CLK and LAT, so `HW_CONFIG 17`
+selects the shared-pin PIO program in the vendored `nespad.cpp`, as on the Murmulator. That
+program lacks the timing the SNES Mouse needs, so `NESPAD_SNES_MOUSE` is off on this board.
+The four USB-A ports are behind the board's hub; `tusb_config.h` allows one hub and three
+devices.
+
 **pico-bootLoader builds.** `<tag>-build-forbootloader.sh` runs `<tag>-build.sh` with
 `-DBUILD_FOR_BOOTLOADER=ON` in `build_bl_<tag>`.
 - FLASH starts at `0x10080000` and ends at the asset cache, 2.5 MB
@@ -62,7 +73,8 @@ not work, so only one USB device can be used there.
   about 0.8 MB.
 - The loader identifies an application by its binary-info program name, `pico-quake2`,
   the first column of its `emu/emulators.txt`. Its `build_emulators.sh` clones this
-  repository at the latest release tag, runs these scripts for HW_CONFIG 8, 2 and 18, and
+  repository at the latest release tag, runs these scripts for HW_CONFIG 8, 2 and 18 (not
+  yet 17), and
   installs `quake2.uf2` as `emu/<hw>/pico-quake2.uf2`. A tag reaches the bootloader's
   SD-card archive only if it contains the scripts. `buildAll.sh` does not release
   bootloader builds.
@@ -92,8 +104,8 @@ Bring-up and debugging:
   - After `reset halt` or BOOTSEL, XIP reads of flash return zeros: the QSPI pads are not
     set up yet, and BOOTSEL forces SD1's input low. A zero readback in that state does not
     mean the flash is erased.
-- **UART:** the console runs at 115200 baud on GPIO 44/45 (Fruit Jam) or GPIO 0/1 (the
-  other boards). Lines typed on it run as console
+- **UART:** the console runs at 115200 baud on GPIO 44/45 (Fruit Jam), GPIO 8/9 (UART1,
+  Pico Computer 3) or GPIO 0/1 (the other boards). Lines typed on it run as console
   commands. A build with `Q2_STATUS_DIAG=1` (`src/pico/q2_boot.c`) also prints a status
   line every 5 seconds (fps, PSRAM heap, SRAM heap, flash cache, stack, failed USB
   transfers, surface-cache rebuilds); it is off by default. To turn it on, configure a
@@ -159,7 +171,7 @@ tools/release_notes.sh v0.1-alpha   # the CHANGELOG.md section of that tag
 
 | File | Role |
 |---|---|
-| `src/pico/q2_usb.cpp` | TinyUSB host: Pico-PIO-USB on the Fruit Jam (PIO2, GPIO 1/2 with port power on GPIO 11) and on HW_CONFIG 18 (PIO2, GPIO 28/29), the native USB controller on HW_CONFIG 2; a 4 ms timer at the lowest priority runs `tuh_task` and samples every device |
+| `src/pico/q2_usb.cpp` | TinyUSB host: Pico-PIO-USB on the Fruit Jam (PIO2, GPIO 1/2 with port power on GPIO 11) and on HW_CONFIG 18 (PIO2, GPIO 28/29), the native USB controller on HW_CONFIG 2 and 17; a 4 ms timer at the lowest priority runs `tuh_task` and samples every device |
 | `src/pico/q2_nespad.cpp` | NES/SNES controller ports (pico_shared nespad on PIO1), polled from the same timer without blocking and merged into the pad buttons: SNES pads by position, NES pads by name (A → right, B → bottom). A SNES Mouse (`NESPAD_SNES_MOUSE`, 32-bit reads) is merged into the mouse, its motion accelerated from 4 to 16 units per count by speed. A read is collected and the next started at most once per millisecond: a start within about 5 us of the previous read's end is lost and the state machine waits forever, and after a flash erase the timer runs the missed ticks back to back |
 | `src/pico/q2_usb_frame.c` | The 1 ms USB frame, and SOFs during flash writes |
 | `src/pico/q2_input.c` | HID keyboard usages, mouse and pad buttons to Quake II keys; mouse and right stick to `QG_GetMouseDiff`; the default pad bindings (`QG_PlatformConfig`) |

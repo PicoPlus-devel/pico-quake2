@@ -6,6 +6,17 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 
 [The files of this release are listed at the end of these notes](#downloads___).
 
+## v0.5-alpha
+
+### Added
+
+- **[Pico Computer 3](https://github.com/UKTailwind/Pico-Computer-3)** is now supported
+  (`pico-quake2_picocomputer3.uf2`). Picture over HDMI, sound over HDMI and the audio
+  jack at the same time, up to three USB devices (gamepad, keyboard, mouse) on the USB-A
+  ports, and two NES/SNES controllers on the I/O header. Not yet tested on this board,
+  and the pin assignment may still change. Thanks to @javavi, who added the board to
+  pico_shared.
+
 ## v0.4-alpha
 
 ### Added
@@ -167,6 +178,7 @@ for details.
 | Adafruit Fruit Jam | [pico-quake2_fruitjam.uf2](https://github.com/PicoPlus-devel/pico-quake2/releases/latest/download/pico-quake2_fruitjam.uf2) |
 | Pimoroni Pico Plus 2 with the Adafruit DVI and microSD breakouts (HW_CONFIG 2) | [pico-quake2_adafruitdvisd.uf2](https://github.com/PicoPlus-devel/pico-quake2/releases/latest/download/pico-quake2_adafruitdvisd.uf2) |
 | Waveshare RP2350-PiZero on the PCB by Liu Szuping (HW_CONFIG 18) | [pico-quake2_pizeroliupcb.uf2](https://github.com/PicoPlus-devel/pico-quake2/releases/latest/download/pico-quake2_pizeroliupcb.uf2) |
+| Pico Computer 3 (HW_CONFIG 17), not yet tested | [pico-quake2_picocomputer3.uf2](https://github.com/PicoPlus-devel/pico-quake2/releases/latest/download/pico-quake2_picocomputer3.uf2) |
 
 The game data for the SD card is in
 [pico-quake2_demo_sdcard.zip](https://github.com/PicoPlus-devel/pico-quake2/releases/latest/download/pico-quake2_demo_sdcard.zip):

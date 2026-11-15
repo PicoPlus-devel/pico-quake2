@@ -39,7 +39,7 @@ reading the stack pointer from C would get the frame wrong.
 
 static void hf_putc (char c)
 {
-	uart_putc_raw (uart0, c);
+	uart_putc_raw (uart_default, c);	// UART1 on the Pico Computer 3
 }
 
 static void hf_puthex (uint32_t v)

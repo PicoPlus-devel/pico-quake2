@@ -2,8 +2,8 @@
 
 A port of id Software's Quake II to boards built around the Raspberry Pi RP2350
 microcontroller: the Adafruit Fruit Jam, a Pimoroni Pico Plus 2 with the Adafruit DVI
-and microSD breakouts, and a Waveshare RP2350-PiZero on the PCB by Liu Szuping (see
-[Boards](#boards)). The picture goes out over HDMI, sound
+and microSD breakouts, a Waveshare RP2350-PiZero on the PCB by Liu Szuping, and the Pico
+Computer 3 (see [Boards](#boards)). The picture goes out over HDMI, sound
 over HDMI or a headphone output, and the game is played with a USB gamepad or a USB
 keyboard and mouse. The game data is read from an SD card.
 
@@ -37,11 +37,13 @@ test program, which runs the same game code and reproduces the board's colour de
 - The three levels of the shareware demo, the attract demo and the menus
 - Video over HDMI at 640×480
 - Sound effects over HDMI, the Fruit Jam's headphone jack, a PCM5100A DAC on the Pico
-  Plus 2 board, or the audio jack of the RP2350-PiZero PCB (see [Sound](#sound))
+  Plus 2 board, or the audio jack of the RP2350-PiZero PCB or the Pico Computer 3 (see
+  [Sound](#sound))
 - USB gamepad, keyboard and mouse input, tested with a DualShock 4 and a USB keyboard and
   mouse (see [Controls](#controls))
 - NES and SNES controllers in the controller ports of the Pico Plus 2 board and the
-  RP2350-PiZero PCB, and an original SNES Mouse
+  RP2350-PiZero PCB, and on the I/O header of the Pico Computer 3; an original SNES Mouse
+  on the first two
 - Savegames and settings on the SD card
 - Errors are shown on the screen, so no serial cable or computer is needed to find out
   what went wrong
@@ -51,7 +53,7 @@ test program, which runs the same game code and reproduces the board's colour de
 - **Low frame rate.** The demo levels run at about 20 to 25 frames per second, and
   slower in busy scenes. To get there, the view fills only 70% of the screen by default.
   A larger view lowers the frame rate further.
-- **Three boards.** Only the boards listed under [Boards](#boards) are supported. The port
+- **Four boards.** Only the boards listed under [Boards](#boards) are supported. The port
   needs an RP2350 with 8 MB of PSRAM and 16 MB of flash memory; other boards with that
   much memory may follow. Boards with 8 MB of flash memory or less do not work: the
   textures, models and sounds of a level must all fit in the flash memory, and those of
@@ -89,6 +91,7 @@ text shown on the screen, if any.
 | [Adafruit Fruit Jam](https://www.adafruit.com/product/6200) | `pico-quake2_fruitjam.uf2` |
 | Pimoroni Pico Plus 2 with the Adafruit DVI breakout and microSD breakout (pico_shared hardware configuration 2) | `pico-quake2_adafruitdvisd.uf2` |
 | Waveshare RP2350-PiZero on the PCB by Liu Szuping (pico_shared hardware configuration 18) | `pico-quake2_pizeroliupcb.uf2` |
+| [Pico Computer 3](https://github.com/UKTailwind/Pico-Computer-3) (pico_shared hardware configuration 17), not yet tested | `pico-quake2_picocomputer3.uf2` |
 
 The second board is the configuration the pico_shared emulators call HW_CONFIG 2, built
 on a breadboard or on the [PicoNES printed circuit board](#picones-pcb). It must use a
@@ -148,6 +151,38 @@ Quake II has been tested on this board.
 - **SD card.** The card goes in the RP2350-PiZero's own card slot.
 - **What to flash.** `pico-quake2_pizeroliupcb.uf2`. The firmware for the
   RP2350-PiZero on its own does not work on this PCB.
+
+### Pico Computer 3
+
+The fourth board is the [Pico Computer 3](https://github.com/UKTailwind/Pico-Computer-3)
+(PC3), an RP2350B computer board with an HDMI connector, a microSD card slot, 8 MB of
+PSRAM, 16 MB of flash memory, a USB hub and an audio jack. The pico_shared emulators call
+it HW_CONFIG 17.
+
+> [!NOTE]
+> Quake II has not yet been tested on this board. The pin assignment of the I/O header
+> may still change in a future release.
+
+- **Video and sound.** The picture goes out over the HDMI connector. Sound plays over HDMI
+  and the audio jack at the same time.
+- **USB.** USB gamepads, keyboards and mice go in the USB-A ports, which are behind the
+  board's USB hub. Up to three USB devices can be used at the same time.
+- **Controllers.** Up to two NES or SNES controllers connect to the external I/O header
+  H4. Both ports share the clock and latch lines:
+
+  | | Clock | Latch | Data |
+  |:--|:--|:--|:--|
+  | Port 1 | GPIO 4 | GPIO 5 | GPIO 6 |
+  | Port 2 | GPIO 4 | GPIO 5 | GPIO 7 |
+
+  A SNES Mouse is not supported on this board.
+- **Serial console.** UART1, TX on GPIO 8 and RX on GPIO 9.
+- **LED.** The heartbeat LED on GPIO 25 blinks while level data is copied, when jumper H5
+  is set to 1-2.
+- **What to flash.** `pico-quake2_picocomputer3.uf2`.
+
+Support for this board in the pico_shared emulators was contributed by
+[javavi](https://github.com/javavi).
 
 ## PicoNES PCB
 
@@ -229,9 +264,10 @@ For questions about the case, please contact the designer on the Thingiverse pag
   folder of the full game (untested, see above)
 - An HDMI screen
 - A USB gamepad, or a USB keyboard and preferably a mouse; on the Pico Plus 2 board and
-  the RP2350-PiZero PCB, a NES or SNES controller and a SNES Mouse can be used as well
-- Optionally, headphones (Fruit Jam and RP2350-PiZero PCB) or a PCM5100A DAC (Pico
-  Plus 2 board)
+  the RP2350-PiZero PCB, a NES or SNES controller and a SNES Mouse can be used as well,
+  and on the Pico Computer 3 a NES or SNES controller
+- Optionally, headphones (Fruit Jam, RP2350-PiZero PCB and Pico Computer 3) or a PCM5100A
+  DAC (Pico Plus 2 board)
 
 ## Installing
 
@@ -303,8 +339,10 @@ The full game is not included.
 
 Quake II can also be started from the menu of
 [pico-bootLoader](https://github.com/PicoPlus-devel/pico-bootLoader), which keeps several
-applications on one board. It is listed in the bootloader's **Ports** category on all
-three boards, and the bootloader's SD-card archive contains its firmware. The game data is not
+applications on one board. It is listed in the bootloader's **Ports** category on the
+Fruit Jam, the Pico Plus 2 board and the RP2350-PiZero PCB, and the bootloader's SD-card
+archive contains its firmware. The bootloader does not support the Pico Computer 3 yet.
+The game data is not
 part of that archive: install it in `roms/quake2` as described above, or with the
 updateAll in the archive's `updateAll` folder.
 
@@ -353,8 +391,8 @@ button or Start answers no. On a keyboard, **Y** or **Enter** quits, and **N** o
 
 ### NES and SNES controllers
 
-On the Pico Plus 2 board and the RP2350-PiZero PCB, controllers in the two NES/SNES ports
-work like a USB gamepad
+On the Pico Plus 2 board and the RP2350-PiZero PCB, controllers in the two NES/SNES ports,
+and on the Pico Computer 3 controllers on the I/O header, work like a USB gamepad
 with the same buttons. A SNES controller's buttons sit in the same positions as on the
 table above: **B** fires, **A** jumps, **Y** crouches, **X** selects the next weapon and
 **L** / **R** strafe. On a NES controller, **B** fires and selects in menus, and **A**
@@ -362,8 +400,8 @@ jumps and goes back. Some SNES controllers are only recognised once **A**, **X**
 or **R** has been pressed; until then, **B** and **Y** act as a NES controller's **A**
 and **B**.
 
-An original SNES Mouse can be used instead of, or together with, a USB mouse. It plugs
-into either port (on the v2.6 board through a SNES-to-NES adapter cable), and a
+An original SNES Mouse can be used instead of, or together with, a USB mouse, except on
+the Pico Computer 3. It plugs into either port (on the v2.6 board through a SNES-to-NES adapter cable), and a
 controller can be used in the other port at the same time. Its left button fires and its
 right button strafes, as on a USB mouse. The mouse has a low resolution, so its movement
 is accelerated: slow movements turn the view in small steps for aiming, fast movements
@@ -442,6 +480,7 @@ Sound plays over HDMI.
   at the same time.
 - **RP2350-PiZero PCB:** sound plays over HDMI and the audio jack of the PCB at the same
   time.
+- **Pico Computer 3:** sound plays over HDMI and the audio jack at the same time.
 
 ## Display mode
 
@@ -449,7 +488,8 @@ The HDMI connector sends either an HDMI or a DVI signal. HDMI carries picture an
 DVI carries the picture only and is meant for monitors and TVs that do not accept an HDMI
 signal; the sound then plays on the board's own audio output: on the Fruit Jam the
 speaker, or the headphones while they are plugged in, on the Pico Plus 2 board the
-PCM5100A DAC if one is fitted, and on the RP2350-PiZero PCB the audio jack.
+PCM5100A DAC if one is fitted, and on the RP2350-PiZero PCB and the Pico Computer 3 the
+audio jack.
 
 The mode is set under **Video → display**. The picture switches at once, and the choice is
 stored in `/settings_QUAKE2.dat` on the SD card. Without a stored choice the game starts
@@ -496,12 +536,14 @@ export PICO_PIO_USB_PATH=/path/to/Pico-PIO-USB
 ./fruitjam-build.sh          # -> build_fruitjam/src/pico/quake2.uf2
 ./adafruitdvisd-build.sh     # -> build_adafruitdvisd/src/pico/quake2.uf2
 ./pizeroliupcb-build.sh      # -> build_pizeroliupcb/src/pico/quake2.uf2
+./picocomputer3-build.sh     # -> build_picocomputer3/src/pico/quake2.uf2
 ./buildAll.sh                # every release file -> releases/
 
 # pico-bootLoader versions
 ./fruitjam-build-forbootloader.sh       # -> build_bl_fruitjam/src/pico/quake2.uf2
 ./adafruitdvisd-build-forbootloader.sh  # -> build_bl_adafruitdvisd/src/pico/quake2.uf2
 ./pizeroliupcb-build-forbootloader.sh   # -> build_bl_pizeroliupcb/src/pico/quake2.uf2
+./picocomputer3-build-forbootloader.sh  # -> build_bl_picocomputer3/src/pico/quake2.uf2
 ```
 
 Design notes, debugging tools and measurements are in [TECHNICAL.md](TECHNICAL.md).

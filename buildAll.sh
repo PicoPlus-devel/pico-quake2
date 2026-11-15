@@ -26,7 +26,7 @@
 # ====================================================================================
 cd "$(dirname "$0")" || exit 1
 
-RELEASE_BOARDS="fruitjam adafruitdvisd pizeroliupcb"
+RELEASE_BOARDS="fruitjam adafruitdvisd pizeroliupcb picocomputer3"
 
 # --- tools -------------------------------------------------------------------
 if [ -z "$PICO_SDK_PATH" ] || [ ! -f "$PICO_SDK_PATH/pico_sdk_init.cmake" ]; then
@@ -34,7 +34,7 @@ if [ -z "$PICO_SDK_PATH" ] || [ ! -f "$PICO_SDK_PATH/pico_sdk_init.cmake" ]; the
     exit 1
 fi
 # Pico-PIO-USB is linked on every board (CMakeLists.txt), also where the USB host
-# is the native controller (adafruitdvisd).
+# is the native controller (adafruitdvisd, picocomputer3).
 if [ -z "$PICO_PIO_USB_PATH" ]; then
     echo "PICO_PIO_USB_PATH is not set" >&2
     exit 1
