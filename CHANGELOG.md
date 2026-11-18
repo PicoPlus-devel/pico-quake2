@@ -6,6 +6,12 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 
 [The files of this release are listed at the end of these notes](#downloads___).
 
+## Next release
+
+### Changed
+
+- Built with Pico SDK 2.3.1. This leaves a little more memory free, about 0.5 KB.
+
 ## v0.5-alpha
 
 ### Added
