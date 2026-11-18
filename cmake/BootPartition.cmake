@@ -46,7 +46,9 @@ add_compile_definitions(PICO_FLASH_SIZE_BYTES=${Q2_FLASH_TOTAL})
 # Target properties that go with a relinked (bootloader) image.
 function(q2_bootloader_target_props TARGET)
     # picotool >= 2.2.0 assumes RP2040 for images that do not start at 0x10000000.
-    if(PICO_PLATFORM MATCHES "rp2350")
+    # Pico SDK >= 2.3.0 (which has pico_add_linker_script_override_path) passes
+    # --platform itself, and picotool rejects a second one.
+    if(PICO_PLATFORM MATCHES "rp2350" AND NOT COMMAND pico_add_linker_script_override_path)
         find_program(_q2_picotool picotool)
         if(_q2_picotool)
             execute_process(COMMAND ${_q2_picotool} version --semantic
