@@ -11,6 +11,7 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 ### Changed
 
 - Built with Pico SDK 2.3.1. This leaves a little more memory free, about 0.5 KB.
+- pico-bootLoader no longer lists the game in its menu on a board without PSRAM.
 
 ## v0.5-alpha
 
