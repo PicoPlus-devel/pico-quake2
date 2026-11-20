@@ -6,7 +6,12 @@ card, and the game is played with a USB gamepad or a USB keyboard and mouse.
 
 [The files of this release are listed at the end of these notes](#downloads___).
 
-## Next release
+## v0.5-alpha_bl
+
+This version is built for
+[pico-bootLoader](https://github.com/PicoPlus-devel/pico-bootLoader) only, and is
+included in its SD-card archive. It has no release of its own: without pico-bootLoader,
+keep using v0.5-alpha.
 
 ### Changed
 
